@@ -1,0 +1,32 @@
+time,latitude,longitude,depth,mag,magType,nst,gap,dmin,rms,net,id,updated,place,type,horizontalError,depthError,magError,magNst,status,locationSource,magSource
+2023-09-18T03:10:14.744Z,44.0201,11.6768,10,5.1,mww,110,26,0.586,0.65,us,us7000kwdw,2023-12-02T23:01:07.040Z,"7 km SE of Marradi, Italy",earthquake,3.84,1.769,0.045,48,reviewed,us,us
+2022-11-09T06:07:26.657Z,43.9315,13.3152,8,5.6,mww,147,14,0.881,0.88,us,us7000infp,2023-02-16T07:51:15.850Z,"central Italy",earthquake,4.38,0.527,0.032,92,reviewed,us,us
+2021-03-27T13:47:55.267Z,42.4479,16.0496,7,5.5,mww,,30,1.651,0.88,us,us6000dx0m,2021-12-11T13:15:43.423Z,"55 km N of Peschici, Italy",earthquake,4.6,1.8,0.043,53,reviewed,us,us
+2020-12-29T11:19:54.762Z,45.4244,16.2573,10,6.4,mww,,13,0.941,0.75,us,us6000d3zh,2024-12-16T02:09:08.367Z,"2 km WSW of Petrinja, Croatia",earthquake,4.4,1.8,0.033,89,reviewed,us,us
+2020-03-22T05:24:03.700Z,45.9072,15.9697,10,5.3,mww,,12,0.794,0.59,us,us70008dx7,2023-02-17T14:06:55.780Z,"5 km E of Gornja Bistra, Croatia",earthquake,3.7,1.8,0.035,79,reviewed,us,us
+2019-11-26T09:19:25.856Z,43.2235,17.9118,10,5.3,mww,,24,1.27,0.86,us,us70006d4h,2020-12-29T14:18:53.242Z,"4 km SSE of Blagaj, Bosnia and Herzegovina",earthquake,5.5,1.8,0.058,29,reviewed,us,us
+2017-01-18T13:33:38.000Z,42.5581,13.2487,7.39,5.2,mww,,33,0.12,0.6,us,us10007txl,2022-05-03T18:14:23.688Z,"3 km N of Montereale, Italy",earthquake,5.2,3.8,,,reviewed,us,us
+2017-01-18T10:25:25.490Z,42.5855,13.1904,10,5.6,mww,,30,0.169,0.55,us,us10007twn,2022-05-03T18:09:16.530Z,"4 km SE of Cittareale, Italy",earthquake,5.2,1.8,,,reviewed,us,us
+2017-01-18T10:14:10.980Z,42.6012,13.2268,7,5.7,mww,,27,0.149,0.55,us,us10007twj,2023-02-16T07:48:26.205Z,"5 km ESE of Cittareale, Italy",earthquake,5.2,1.8,,,reviewed,us,us
+2017-01-18T09:25:41.610Z,42.6598,13.2099,10,5.3,mww,,30,0.462,0.84,us,us10007twc,2017-04-12T02:29:00.040Z,"4 km SW of Accumoli, Italy",earthquake,5.1,1.8,,,reviewed,us,us
+2016-10-30T06:40:18.670Z,42.8621,13.0961,8,6.6,mww,,25,0.174,0.67,us,us1000731j,2023-12-18T16:43:26.687Z,"5 km ESE of Preci, Italy",earthquake,5.3,1.8,,,reviewed,us,us
+2016-10-26T19:18:08.430Z,42.9564,13.0666,10,6.1,mww,,17,0.081,0.71,us,us1000725y,2023-02-16T07:45:45.893Z,"2 km NNW of Visso, Italy",earthquake,4.7,1.7,,,reviewed,us,us
+2016-10-26T17:10:37.210Z,42.858,13.0528,6,5.5,mww,,32,0.051,0.88,us,us20007guy,2023-02-16T07:43:39.129Z,"2 km SSE of Preci, Italy",earthquake,4.4,1.7,,,reviewed,us,us
+2016-08-24T02:33:29.450Z,42.8413,13.1533,3.25,5.6,mww,,23,0.521,0.84,us,us10006g7w,2022-05-03T18:41:12.095Z,"5 km S of Castelsantangelo sul Nera, Italy",earthquake,3.9,2.1,,,reviewed,us,us
+2016-08-24T01:36:32.870Z,42.723,13.1877,4.44,6.2,mww,,25,0.123,0.68,us,us10006g7d,2023-12-18T16:32:05.896Z,"5 km WNW of Accumoli, Italy",earthquake,4.4,2.8,,,reviewed,us,us
+2013-07-21T01:32:24.000Z,43.501,13.668,8.4,5.4,mb,111,100,,,us,usb000iiu5,2022-07-25T18:42:59.988Z,"3 km ENE of Marcelli, Italy",earthquake,,,,278,reviewed,rom,us
+2013-06-21T10:33:57.000Z,44.153,10.135,5.1,5.2,mwr,393,100,,,us,usc000hx16,2022-08-06T16:27:08.151Z,"6 km WSW of Minucciano, Italy",earthquake,,,,,reviewed,rom,us
+2012-06-03T19:20:43.000Z,44.9,10.94,9,5.1,mb,224,21.9,,,us,usp000jm9v,2022-05-03T15:41:39.579Z,"3 km ENE of Novi di Modena, Italy",earthquake,,,,62,reviewed,rom,us
+2012-05-29T11:00:25.050Z,44.873,10.955,10,5.1,mb,290,28,,1.09,us,usp000jm31,2015-03-24T01:48:27.878Z,"2 km W of San Possidonio, Italy",earthquake,,,,194,reviewed,us,us
+2012-05-29T10:55:57.000Z,44.888,11.008,6.8,5.5,mww,575,17.9,,,us,usp000jm2z,2022-05-03T15:41:14.710Z,"2 km NE of San Possidonio, Italy",earthquake,,,,,reviewed,rom,us
+2012-05-29T07:00:03.000Z,44.851,11.086,10.2,5.8,mww,678,16.7,,,us,usp000jm2n,2022-05-03T17:03:23.869Z,"1 km ENE of Medolla, Italy",earthquake,,,,,reviewed,rom,us
+2012-05-20T13:18:02.000Z,44.831,11.49,4.7,5,mwr,445,12,,,us,usp000jkpj,2022-05-03T17:03:22.698Z,"1 km SSW of Vigarano Mainarda, Italy",earthquake,,,,,reviewed,rom,us
+2012-05-20T02:03:52.000Z,44.89,11.23,6.3,6,mww,729,11.5,,,us,usp000jkn8,2022-05-03T15:40:01.899Z,"4 km NNE of Massa Finalese, Italy",earthquake,,,,,reviewed,rom,us
+2012-01-27T14:53:13.000Z,44.48,10.03,60,5,mwr,377,20,,,us,usp000je1g,2015-03-24T01:38:26.631Z,"4 km SE of Berceto, Italy",earthquake,,,,,reviewed,rom,rom
+2009-04-13T21:14:24.000Z,42.504,13.363,7.5,5,mwc,227,24.2,,,us,usp000gw3r,2022-07-15T07:52:19.995Z,"5 km ESE of Capitignano, Italy",earthquake,,,,,reviewed,rom,gcmt
+2009-04-09T19:38:17.360Z,42.513,13.331,2.6,5.2,mwc,265,19.6,,0.94,us,usp000gvz0,2022-07-15T07:42:25.284Z,"2 km ESE of Capitignano, Italy",earthquake,,2.1,,,reviewed,us,gcmt
+2009-04-09T00:52:59.000Z,42.484,13.343,15.4,5.4,mwc,277,18.9,,,us,usp000gvxz,2022-08-09T09:14:20.838Z,"5 km SE of Capitignano, Italy",earthquake,,,,,reviewed,rom,gcmt
+2009-04-06T23:15:37.000Z,42.451,13.364,8.6,5.1,mwc,315,11.6,,,us,usp000gvux,2022-07-15T07:18:32.197Z,"5 km ENE of Pizzoli, Italy",earthquake,,,,,reviewed,rom,gcmt
+2008-12-23T21:58:25.000Z,44.521,10.392,31.4,5,mwc,347,18.3,,,us,usp000grak,2022-07-14T22:52:03.765Z,"5 km NE of Vetto, Italy",earthquake,,,,,reviewed,rom,gcmt
+2008-12-23T15:24:22.470Z,44.555,10.41,28.3,5.4,mwc,294,27.4,,0.88,us,usp000gr91,2022-07-14T22:50:12.408Z,"4 km S of Ciano d'Enza, Italy",earthquake,,,,,reviewed,us,gcmt
+2005-04-18T06:42:50.700Z,45.93,-1.31,10,5.2,mb,116,54.1,,,us,usp000dnnm,2020-09-18T20:32:16.475Z,"1 km SSW of Saint-Pierre-d'Oléron, France",earthquake,,,,2,reviewed,csem,us
