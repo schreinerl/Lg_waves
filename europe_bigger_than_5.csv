@@ -1,10 +1,9 @@
 time,latitude,longitude,depth,mag,magType,nst,gap,dmin,rms,net,id,updated,place,type,horizontalError,depthError,magError,magNst,status,locationSource,magSource
 2023-09-18T03:10:14.744Z,44.0201,11.6768,10,5.1,mww,110,26,0.586,0.65,us,us7000kwdw,2023-12-02T23:01:07.040Z,"7 km SE of Marradi, Italy",earthquake,3.84,1.769,0.045,48,reviewed,us,us
-2022-11-09T06:07:26.657Z,43.9315,13.3152,8,5.6,mww,147,14,0.881,0.88,us,us7000infp,2023-02-16T07:51:15.850Z,"central Italy",earthquake,4.38,0.527,0.032,92,reviewed,us,us
+2022-11-09T06:07:26.657Z,43.9315,13.3152,8,5.6,mww,147,14,0.881,0.88,us,us7000infp,2023-02-16T07:51:15.850Z,central Italy,earthquake,4.38,0.527,0.032,92,reviewed,us,us
 2021-03-27T13:47:55.267Z,42.4479,16.0496,7,5.5,mww,,30,1.651,0.88,us,us6000dx0m,2021-12-11T13:15:43.423Z,"55 km N of Peschici, Italy",earthquake,4.6,1.8,0.043,53,reviewed,us,us
 2020-12-29T11:19:54.762Z,45.4244,16.2573,10,6.4,mww,,13,0.941,0.75,us,us6000d3zh,2024-12-16T02:09:08.367Z,"2 km WSW of Petrinja, Croatia",earthquake,4.4,1.8,0.033,89,reviewed,us,us
 2020-03-22T05:24:03.700Z,45.9072,15.9697,10,5.3,mww,,12,0.794,0.59,us,us70008dx7,2023-02-17T14:06:55.780Z,"5 km E of Gornja Bistra, Croatia",earthquake,3.7,1.8,0.035,79,reviewed,us,us
-2019-11-26T09:19:25.856Z,43.2235,17.9118,10,5.3,mww,,24,1.27,0.86,us,us70006d4h,2020-12-29T14:18:53.242Z,"4 km SSE of Blagaj, Bosnia and Herzegovina",earthquake,5.5,1.8,0.058,29,reviewed,us,us
 2017-01-18T13:33:38.000Z,42.5581,13.2487,7.39,5.2,mww,,33,0.12,0.6,us,us10007txl,2022-05-03T18:14:23.688Z,"3 km N of Montereale, Italy",earthquake,5.2,3.8,,,reviewed,us,us
 2017-01-18T10:25:25.490Z,42.5855,13.1904,10,5.6,mww,,30,0.169,0.55,us,us10007twn,2022-05-03T18:09:16.530Z,"4 km SE of Cittareale, Italy",earthquake,5.2,1.8,,,reviewed,us,us
 2017-01-18T10:14:10.980Z,42.6012,13.2268,7,5.7,mww,,27,0.149,0.55,us,us10007twj,2023-02-16T07:48:26.205Z,"5 km ESE of Cittareale, Italy",earthquake,5.2,1.8,,,reviewed,us,us
