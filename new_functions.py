@@ -1687,6 +1687,7 @@ def plot_amplitudes_distance(station_with_amps):
 
 import json
 import pandas as pd
+from obspy.clients.fdsn.header import FDSNNoDataException
 
 
 
@@ -1694,21 +1695,25 @@ def processing(datacenters=['RESIF','ODC','ETH','INGV','GEOFON','BGR', 'IRIS', '
                 distmin=1.9, distmax=10.,Dtmin_Noise=-25,Dtmax_Noise=-5,Dtmin_Pn=-5.,Dtmax_Pn=10.,Dtmin_Sn=-5.,Dtmax_Sn=10.,
                 vLg_max=3.5, vLg_min=3.1, vPg_max=6.2, snr_threshold = 2 ,vPg_min=5.2, directory='/home/schreinl/Stage/Data/', fmin=3, fmax=6,
                 plot_SNR=False,plot_amps=True, wavecode="Lg_Coda",dB=True):
-    catalogue = pd.read_csv(catalog_file) 
+    catalogue = pd.read_csv(catalogue_file) 
     vLg=0.5*(vLg_max+vLg_min)
     vPg=0.5*(vPg_max+vPg_min)
     for i in range(len(catalogue)):
         print(f'Processing earthquake {i+1} out of {len(catalogue)}')
 
-        start = UTCDateTime(catalogue['time'][i])
-        eq_start = start
-        end = start + 400
-        eq_lon = float(catalogue['longitude'][i])
-        eq_lat = float(catalogue['latitude'][i])
+        try:
+            start = UTCDateTime(catalogue['time'][i])
+            eq_start = start
+            end = start + 400
+            eq_lon = float(catalogue['longitude'][i])
+            eq_lat = float(catalogue['latitude'][i])
 
-        # Start downloading routine
-        st_all, stations_all, plot = big_downloader2(datacenters, start, end, eq_lon, eq_lat, distmin, distmax, directory, plot=False)
-        f0=0.5*(fmin+fmax)
+            # Start downloading routine
+            st_all, stations_all, plot = big_downloader2(datacenters, start, end, eq_lon, eq_lat, distmin, distmax, directory, plot=False)
+
+        except FDSNNoDataException:
+            print(f"No data available for earthquake {i+1}, skipping...")
+            continue  # Skip to the next earthquakef0=0.5*(fmin+fmax)
         time_string = UTCDateTime.strftime(start, format="%Y_%m_%dT%H_%M_%S")
         st_plot_filt_all=st_all.copy()
         st_plot_filt_all.filter("bandpass", freqmin=fmin, freqmax=fmax)
@@ -1721,10 +1726,10 @@ def processing(datacenters=['RESIF','ODC','ETH','INGV','GEOFON','BGR', 'IRIS', '
         
         # Create plot of azimuth dependency of SNR
         #10: 'Pn', 11: 'Pg', 12: 'Sn', 13: 'Lg'
-        snr_az_sn = snr_azimuth(stations_with_SNR, column=12, barlabel="SNR", xlabel="Azimuth (°)", ylabel="Distance (km)", title="SNR", event_name=time_string, savefig=True, show=False)
-        snr_az_pn = snr_azimuth(stations_with_SNR, column=10, barlabel="SNR", xlabel="Azimuth (°)", ylabel="Distance (km)", title="SNR", event_name=time_string, savefig=True, show=False)
-        snr_az_pg = snr_azimuth(stations_with_SNR, column=11, barlabel="SNR", xlabel="Azimuth (°)", ylabel="Distance (km)", title="SNR", event_name=time_string, savefig=True, show=False)
-        snr_az_lg = snr_azimuth(stations_with_SNR, column=13, barlabel="SNR", xlabel="Azimuth (°)", ylabel="Distance (km)", title="SNR", event_name=time_string, savefig=True, show=False)
+        #snr_az_sn = snr_azimuth(stations_with_SNR, column=12, barlabel="SNR", xlabel="Azimuth (°)", ylabel="Distance (km)", title="SNR", event_name=time_string, savefig=True, show=False)
+        #snr_az_pn = snr_azimuth(stations_with_SNR, column=10, barlabel="SNR", xlabel="Azimuth (°)", ylabel="Distance (km)", title="SNR", event_name=time_string, savefig=True, show=False)
+        #snr_az_pg = snr_azimuth(stations_with_SNR, column=11, barlabel="SNR", xlabel="Azimuth (°)", ylabel="Distance (km)", title="SNR", event_name=time_string, savefig=True, show=False)
+        #snr_az_lg = snr_azimuth(stations_with_SNR, column=13, barlabel="SNR", xlabel="Azimuth (°)", ylabel="Distance (km)", title="SNR", event_name=time_string, savefig=True, show=False)
 
         # Save stations_with_amps to a file
         with open(f"{directory}/{time_string}/{time_string}_{snr_threshold}_thresh_stations_with_amps.txt", "w") as ampls:
