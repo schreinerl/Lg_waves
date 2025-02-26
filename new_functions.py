@@ -1748,3 +1748,136 @@ def processing(datacenters=['RESIF','ODC','ETH','INGV','GEOFON','BGR', 'IRIS', '
 
 
 
+def select_ratio(wavecode, stations_with_amps):
+    '''
+    this only works when the stations_with amps file is in this format:
+    net (0), sta (1), lat (2), lon (3), elev (4) , dist(5), az(6), 
+    t_Pn (7), t_Sn (8), t_Pg(9), A_Pn (10), A_Sn (11), A_Lg(12), A_Coda(13), A_Noise(14), A_pg(15)
+
+    '''
+    distDraw=stations_with_amps[:,5].astype(float)/1000.
+    azDraw=stations_with_amps[:,6].astype(float) 
+
+    if wavecode == 'Pn' :
+        Amp_Draw=stations_with_amps[:,10].astype(float)
+    elif wavecode == 'Sn' :
+        Amp_Draw=stations_with_amps[:,11].astype(float)
+    elif wavecode == 'Lg' :
+        Amp_Draw=stations_with_amps[:,12].astype(float)  
+    elif wavecode == 'Coda' :
+        Amp_Draw=stations_with_amps[:,13].astype(float)    
+    elif wavecode == 'Noise' :
+        Amp_Draw=stations_with_amps[:,14].astype(float) 
+    elif wavecode == 'Pg' :
+        Amp_Draw=stations_with_amps[:,15].astype(float)
+    elif wavecode== 'Pg_Coda':
+        Amp_Draw=np.divide(stations_with_amps[:,15].astype(float),stations_with_amps[:,13].astype(float))
+    elif wavecode == 'Lg_Coda' :
+        Amp_Draw=np.divide(stations_with_amps[:,12].astype(float),stations_with_amps[:,13].astype(float))
+    elif wavecode == 'Lg_Pn' :
+        Amp_Draw=np.divide(stations_with_amps[:,12].astype(float),stations_with_amps[:,10].astype(float))
+    elif wavecode == 'Lg_Pg' :
+        Amp_Draw=np.divide(stations_with_amps[:,12].astype(float),stations_with_amps[:,15].astype(float))
+    elif wavecode == 'Lg_Sn' :
+        Amp_Draw=np.divide(stations_with_amps[:,12].astype(float),stations_with_amps[:,11].astype(float))
+    elif wavecode == 'Pn_Coda' :
+        Amp_Draw=np.divide(stations_with_amps[:,10].astype(float),stations_with_amps[:,13].astype(float))
+    elif wavecode == 'Sn_Coda' :
+        Amp_Draw=np.divide(stations_with_amps[:,11].astype(float),stations_with_amps[:,13].astype(float))
+    elif wavecode == 'Lg_Noise' :
+        Amp_Draw=np.divide(stations_with_amps[:,12].astype(float),stations_with_amps[:,14].astype(float))
+    elif wavecode == 'Coda_Noise' :
+        Amp_Draw=np.divide(stations_with_amps[:,13].astype(float),stations_with_amps[:,14].astype(float))
+    else:
+        Amp_Draw = np.zeros(stations_with_amps.shape[0])
+        print('wavecode not recognized')
+    Amp_Draw[np.isnan(Amp_Draw)] = 0    
+    Amp_Draw[np.isinf(Amp_Draw)] = 0
+    return Amp_Draw
+
+
+
+def select_ratio_dict(wavecode, stations_with_amps):
+    '''
+    this only works when the stations_with amps file is in this format:
+    net (0), sta (1), lat (2), lon (3), elev (4) , dist(5), az(6), 
+    t_Pn (7), t_Sn (8), t_Pg(9), A_Pn (10), A_Sn (11), A_Lg(12), A_Coda(13), A_Noise(14), A_pg(15)
+
+    '''
+    distDraw=stations_with_amps[:,5].astype(float)/1000.
+    azDraw=stations_with_amps[:,6].astype(float) 
+    stationname = stations_with_amps[:,1]
+
+    if wavecode == 'Pn' :
+        Amp_Draw=stations_with_amps[:,10].astype(float)
+    elif wavecode == 'Sn' :
+        Amp_Draw=stations_with_amps[:,11].astype(float)
+    elif wavecode == 'Lg' :
+        Amp_Draw=stations_with_amps[:,12].astype(float)  
+    elif wavecode == 'Coda' :
+        Amp_Draw=stations_with_amps[:,13].astype(float)    
+    elif wavecode == 'Noise' :
+        Amp_Draw=stations_with_amps[:,14].astype(float) 
+    elif wavecode == 'Pg' :
+        Amp_Draw=stations_with_amps[:,15].astype(float)
+    elif wavecode== 'Pg_Coda':
+        Amp_Draw=np.divide(stations_with_amps[:,15].astype(float),stations_with_amps[:,13].astype(float))
+    elif wavecode == 'Lg_Coda' :
+        Amp_Draw=np.divide(stations_with_amps[:,12].astype(float),stations_with_amps[:,13].astype(float))
+    elif wavecode == 'Lg_Pn' :
+        Amp_Draw=np.divide(stations_with_amps[:,12].astype(float),stations_with_amps[:,10].astype(float))
+    elif wavecode == 'Lg_Pg' :
+        Amp_Draw=np.divide(stations_with_amps[:,12].astype(float),stations_with_amps[:,15].astype(float))
+    elif wavecode == 'Lg_Sn' :
+        Amp_Draw=np.divide(stations_with_amps[:,12].astype(float),stations_with_amps[:,11].astype(float))
+    elif wavecode == 'Pn_Coda' :
+        Amp_Draw=np.divide(stations_with_amps[:,10].astype(float),stations_with_amps[:,13].astype(float))
+    elif wavecode == 'Sn_Coda' :
+        Amp_Draw=np.divide(stations_with_amps[:,11].astype(float),stations_with_amps[:,13].astype(float))
+    elif wavecode == 'Lg_Noise' :
+        Amp_Draw=np.divide(stations_with_amps[:,12].astype(float),stations_with_amps[:,14].astype(float))
+    elif wavecode == 'Coda_Noise' :
+        Amp_Draw=np.divide(stations_with_amps[:,13].astype(float),stations_with_amps[:,14].astype(float))
+    else:
+        Amp_Draw = np.zeros(stations_with_amps.shape[0])
+        print('wavecode not recognized')
+    Amp_Draw[np.isnan(Amp_Draw)] = 0    
+    Amp_Draw[np.isinf(Amp_Draw)] = 0
+    station_amp_dict =dict(zip(stationname, Amp_Draw))
+    return station_amp_dict
+
+
+
+
+def update_event_file(file_path, event_name, station_data):
+    """
+    Update a CSV file with station-event data.
+    
+    :param file_path: Path to the CSV file.
+    :param event_name: Name of the event (prefix for column names).
+    :param station_data: Dictionary with station names as keys and tuples of values for the event.
+    """
+    # Load existing data if the file exists
+    if os.path.exists(file_path):
+        df = pd.read_csv(file_path, index_col=0)
+    else:
+        df = pd.DataFrame()
+
+    col1 = f"{event_name}_coda"
+    col2 = f"{event_name}_envelope"
+    
+    for col in [col1, col2]:
+        if col not in df.columns:
+            df[col] = 0.0 
+    for station in station_data.keys():
+        if station not in df.index:
+            df.loc[station] = [0.0] * len(df.columns)
+
+    df = df.astype({col1: float, col2: float})
+
+    for station, (value1, value2) in station_data.items():
+        df.at[station, col1] = float(value1)
+        df.at[station, col2] = float(value2)
+
+    df.to_csv(file_path)
+    print(f"Updated {file_path} with event '{event_name}'.")
