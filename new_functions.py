@@ -35,7 +35,7 @@ def big_downloader2(datacenters, start, end, eq_lon, eq_lat, distmin, distmax, d
 
     # Define output file
     time_string = UTCDateTime.strftime(start, format="%Y_%m_%dT%H_%M_%S")
-    output_file = f"/home/schreinl/Stage/Data/Metadata/{time_string}.txt"
+    output_file = f"C:/UGA/Stage/Data/Metadata/{time_string}.txt"
 
     with open(output_file, "w") as f:
         f.write(f"Start Time: {eq_start}\n")
@@ -217,7 +217,7 @@ from time import sleep
 import sys
 from tqdm.auto import tqdm
 
-def get_data2(client, inventory, start, end, eq_lon, eq_lat, distmin, distmax, directory='/home/schreinl/Stage/Data/',datacenter='datacenter'):
+def get_data2(client, inventory, start, end, eq_lon, eq_lat, distmin, distmax, directory='C:/UGA/Stage/Data/',datacenter='datacenter'):
     """
     -function that downloads data from given client and inventory for a given time window
     -filters the stations based on their location
@@ -743,13 +743,13 @@ other variables are float
         }
     #now find the average cutoff distance
     dist_mean = (phase_distance['Pg']['percentile_distance'] + phase_distance['Pn']['percentile_distance'] + phase_distance['Sn']['percentile_distance'])/3    
-            
+    dist_Lg = phase_distance['Lg']['percentile_distance']
     #filter the stations_with_SNR, based upon their distance, if it is larger than dist_mean, the row is deleted
     #and collect the station names of the dropped rows
 
-    rows_to_drop_dist = stations_with_SNR[stations_with_SNR[:, 5].astype(float) / 1000. > dist_mean]
+    rows_to_drop_dist = stations_with_SNR[stations_with_SNR[:, 5].astype(float) / 1000. > dist_Lg]
     dropped_values_dist = rows_to_drop_dist[:, 1].tolist()
-    filtered_arr = stations_with_SNR[stations_with_SNR[:, 5].astype(float) / 1000. <= dist_mean]
+    filtered_arr = stations_with_SNR[stations_with_SNR[:, 5].astype(float) / 1000. <= dist_Lg]
     #we also filter out the rows, where the mean of the SNR of the Pn, Sn and the Pg is below 2
     mask2 = np.mean(filtered_arr[:, 10:13].astype(float), axis=1) >= 2
     rows_to_drop = filtered_arr[~mask2]    
@@ -760,8 +760,8 @@ other variables are float
     
     #with the earthquake specific cutoff distance we can now set tmin_coda:
     
-    tmin_Coda = 1.3* (dist_mean/3)
-    tmax_Coda = tmin_Coda + 20
+    tmin_Coda = 1.3* (dist_Lg/3)
+    tmax_Coda = tmin_Coda + 50
     print(f"coda window set from {tmin_Coda}-{tmax_Coda}s")
     phase_distance['tmin_Coda'] = tmin_Coda
     
