@@ -35,7 +35,7 @@ def big_downloader2(datacenters, start, end, eq_lon, eq_lat, distmin, distmax, d
 
     # Define output file
     time_string = UTCDateTime.strftime(start, format="%Y_%m_%dT%H_%M_%S")
-    output_file = f"C:/UGA/Stage/Data/Metadata/{time_string}.txt"
+    output_file = f"/home/schreinl/Stage/Data/Metadata/{time_string}.txt"
 
     with open(output_file, "w") as f:
         f.write(f"Start Time: {eq_start}\n")
@@ -217,7 +217,7 @@ from time import sleep
 import sys
 from tqdm.auto import tqdm
 
-def get_data2(client, inventory, start, end, eq_lon, eq_lat, distmin, distmax, directory='C:/UGA/Stage/Data/',datacenter='datacenter'):
+def get_data2(client, inventory, start, end, eq_lon, eq_lat, distmin, distmax, directory='/home/schreinl/Stage/Data/',datacenter='datacenter'):
     """
     -function that downloads data from given client and inventory for a given time window
     -filters the stations based on their location
@@ -593,7 +593,7 @@ def SNR(stations, st, Dtmin_Pn, Dtmax_Pn, Dtmin_Sn, Dtmax_Sn, vLg_min,vLg_max,vP
 
 
 def SNR_all(stations, st, Dtmin_Pn, Dtmax_Pn, Dtmin_Sn, Dtmax_Sn, vLg_min,vLg_max,vPg_min, vPg_max, tmin_Coda, tmax_Coda,
-         Dtmin_Noise, Dtmax_Noise,eq_start,eq_lat,eq_lon,snr_threshold=2,plot_SNR=False,plot_amps=False,wavecode="Lg_Pg",dB=False):
+         Dtmin_Noise, Dtmax_Noise,eq_start,eq_lat,eq_lon,snr_threshold=2,plot_SNR=False,plot_amps=False,wavecode="Lg_Pg",dB=False,codawindow="cutoff", factor=1.3):
     """
 stations: list with stations as processed with bid_downloader
 st: data stream
@@ -604,6 +604,7 @@ other variables are float
     snrs = np.zeros((len(stations),len(signal_windows)))
     for j, window in enumerate(signal_windows):
         print(f'calculating SNR for {window}  phase')
+        
     #calculating the SNR for a specific phase
         for k, station in enumerate(stations):
             net, sta, lat, lon, elev, dist, az, t_Pn, t_Sn, t_Pg = station
@@ -759,12 +760,22 @@ other variables are float
     print("Reduced from  ", len(stations_with_SNR), " stations to  ", len(filtered_arr), " stations due to insufficient SNR or distance > " ,  dist_mean)
     
     #with the earthquake specific cutoff distance we can now set tmin_coda:
-    
-    tmin_Coda = 1.3* (dist_Lg/3)
-    tmax_Coda = tmin_Coda + 50
-    print(f"coda window set from {tmin_Coda}-{tmax_Coda}s")
-    phase_distance['tmin_Coda'] = tmin_Coda
-    
+    if codawindow == "cutoff":
+        tmin_Coda = factor * (dist_Lg/3)
+        tmax_Coda = tmin_Coda + 50
+        print(f"coda window set from {tmin_Coda}-{tmax_Coda}s based on Lg cutoff distance")
+        phase_distance['tmin_Coda'] = tmin_Coda
+    elif codawindow == "S_phase":
+        tsmax = 0
+        distmax = 0
+        for station,net, sta, lat, lon, elev, dist, az, t_Pn, t_Sn, t_Pg, snr in filtered_arr:
+            if dist >= distmax:
+                distmax = dist
+                tsmax = t_Sn
+        tmin_Coda = factor * tsmax
+        tmax_Coda = tmin_Coda + 50
+        print(f"coda window set from {tmin_Coda}-{tmax_Coda}s based on S wave arrival")
+
     #using this information we can calculate now all the amplitudes:
     #keep only station names that satisfy the two conditions, and delete all the traces of the unsufficient stations
     filtered_stations = filtered_arr[:,:10]
