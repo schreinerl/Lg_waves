@@ -606,6 +606,9 @@ other variables are float
         print(f'calculating SNR for {window}  phase')
         
     #calculating the SNR for a specific phase
+        tsmax = 0
+        distmax = 0
+            
         for k, station in enumerate(stations):
             net, sta, lat, lon, elev, dist, az, t_Pn, t_Sn, t_Pg = station
             A_Noise=0.
@@ -757,7 +760,7 @@ other variables are float
     dropped_values = rows_to_drop[:, 1].tolist()
     dropped_list = dropped_values_dist + dropped_values
     filtered_arr = filtered_arr[mask2]
-    print("Reduced from  ", len(stations_with_SNR), " stations to  ", len(filtered_arr), " stations due to insufficient SNR or distance > " ,  dist_mean)
+    print("Reduced from  ", len(stations_with_SNR), " stations to  ", len(filtered_arr), " stations due to insufficient SNR or distance > " ,  dist_Lg)
     
     #with the earthquake specific cutoff distance we can now set tmin_coda:
     if codawindow == "cutoff":
@@ -768,12 +771,12 @@ other variables are float
     elif codawindow == "S_phase":
         tsmax = 0
         distmax = 0
-        for station,net, sta, lat, lon, elev, dist, az, t_Pn, t_Sn, t_Pg, snr in filtered_arr:
-            if dist >= distmax:
-                distmax = dist
-                tsmax = t_Sn
+        for station,net, lat, lon, elev, dist, az, t_Pn, t_Sn, t_Pg, Pn_snr, Pg_snr, Sn_snr, Lg_snr in filtered_arr:
+            if float(dist) >= distmax:
+                distmax = float(dist)
+                tsmax = float(t_Sn)
         tmin_Coda = factor * tsmax
-        tmax_Coda = tmin_Coda + 50
+        tmax_Coda = tmin_Coda + 100
         print(f"coda window set from {tmin_Coda}-{tmax_Coda}s based on S wave arrival")
 
     #using this information we can calculate now all the amplitudes:
@@ -1849,6 +1852,7 @@ def select_ratio_dict(wavecode, stations_with_amps):
         Amp_Draw=np.divide(stations_with_amps[:,12].astype(float),stations_with_amps[:,14].astype(float))
     elif wavecode == 'Coda_Noise' :
         Amp_Draw=np.divide(stations_with_amps[:,13].astype(float),stations_with_amps[:,14].astype(float))
+
     else:
         Amp_Draw = np.zeros(stations_with_amps.shape[0])
         print('wavecode not recognized')
@@ -1856,6 +1860,117 @@ def select_ratio_dict(wavecode, stations_with_amps):
     Amp_Draw[np.isinf(Amp_Draw)] = 0
     station_amp_dict =dict(zip(stationname, Amp_Draw))
     return station_amp_dict
+
+
+
+def site_effect(eq_file='/home/schreinl/Stage/Data/eq_4_france.csv', codafile='envelope_amps_fac_1.5_dict',sample_size=25,ref_station1 = "SSB", ref_station2 = "ECH", ratio_plot = False):
+    '''
+    Function calculates the site effect for each station by building the median amplitude ratio of each station to the reference station.
+    For each event and for each station the site effect is calculated.
+    output should be one large
+    Inputs: earthquakes in a list, codafile which is the ending of the files that contain the amplitudes
+    Output: a dictionary with the site effect for each station
+
+    '''
+
+    #read in the earthquake list
+    eq_list = pd.read_csv(eq_file)
+
+    #create the dictionary
+    amplitudes_dict = {}
+
+    #fill the dict with the amplitudes, so for a specific coda window file the amplitudes are read in
+    for i in range(len(eq_list)):
+        start = UTCDateTime(eq_list["time"][i])
+        time_string = UTCDateTime.strftime(start, format="%Y_%m_%dT%H_%M_%S")
+        
+        try:    #/home/schreinl/Stage/Data/{time_string}/{time_string}_envelope_amps_fac_1.5_dict.txt
+            with open(f"/home/schreinl/Stage/Data/{time_string}/{time_string}_{codafile}.txt", "r") as file:
+                amp_dict = json.load(file)
+
+            for station, data in amp_dict.items():
+                if station not in amplitudes_dict:
+                    amplitudes_dict[station] = [None] * i 
+                amplitudes_dict[station].append(data["amplitude"])
+            
+            for station in amplitudes_dict:
+                if station not in amp_dict:
+                    amplitudes_dict[station].append(None)
+        except FileNotFoundError:
+            for station in amplitudes_dict:
+                amplitudes_dict[station].append(None)
+
+        #so now we have a dictionary with the amplitudes for each station for each event, so dimensions are N number of events given,
+        # and M number of stations that have recorded at least one event
+
+    # if we wanted to test what we did, we use a smaller batch size of stations
+    sample_size = min(sample_size, len(amplitudes_dict.keys()))
+    station_tests = random.sample(list(amplitudes_dict.keys()), sample_size)
+
+    #here we choose the reference stations
+    station2 = ref_station1
+    fallback_station = ref_station2
+    amplitude_ratios = {}
+
+    # Counters for stations with and without valid ratios
+    total_stations = len(amplitudes_dict.keys())
+    stations_with_no_valid_ratio = 0
+
+    for station1 in amplitudes_dict.keys():
+        denom_amplitudes = np.array(amplitudes_dict[station1], dtype=np.float64)
+        counter_amplitudes = np.array(amplitudes_dict[station2], dtype=np.float64)
+
+        # Replace None with np.nan
+        denom_amplitudes = np.where(denom_amplitudes == None, np.nan, denom_amplitudes)
+        counter_amplitudes = np.where(counter_amplitudes == None, np.nan, counter_amplitudes)
+
+        # Check if the reference station has missing values and use fallback if necessary
+        
+        # Check if the reference station has missing values and use fallback if necessary
+        if np.isnan(counter_amplitudes).all():
+            print(f"Using fallback station {fallback_station} for station {station1}")
+            counter_amplitudes = np.array(amplitudes_dict[fallback_station], dtype=np.float64)
+            counter_amplitudes = np.where(counter_amplitudes == None, np.nan, counter_amplitudes)
+
+        # Calculate the ratio
+        ratio = np.divide(denom_amplitudes, counter_amplitudes, out=np.full_like(denom_amplitudes, np.nan), where=(counter_amplitudes != 0))
+        valid_ratios = ratio[~np.isnan(ratio)]
+        
+        if len(valid_ratios) > 0:
+            amplitude_ratios[station1] = {
+                "median": np.nanmedian(valid_ratios),
+                "std": np.nanstd(valid_ratios),
+            }
+        else:
+            amplitude_ratios[station1] = {
+                "median": np.nan,
+                "std": np.nan,
+            }
+            #print(f"No valid ratio computed for station {station1}")
+            stations_with_no_valid_ratio += 1
+
+    # Print the number of stations with no valid ratio and the total number of stations
+    print(f"Total number of stations: {total_stations}")
+    print(f"Number of stations with no valid ratio: {stations_with_no_valid_ratio}")
+
+    if ratio_plot == True:
+        station_tests = random.sample(list(amplitudes_dict.keys()), 25)
+        median_values = [amplitude_ratios[st]["median"] for st in station_tests]
+        std_values = [amplitude_ratios[st]["std"] for st in station_tests]
+
+        plt.figure(figsize=(8, 5))
+        plt.errorbar(station_tests, median_values, yerr=std_values, fmt='o', capsize=5, markersize=8, color="b", label="Median ± Std Dev")
+
+        plt.xlabel("Station")
+        plt.ylabel(f"Median Amplitude Ratio ({station2} Reference)")
+        plt.title(f"Median Amplitude Ratio with Standard Deviation")
+        plt.legend()
+        plt.ylim(0, 20)
+        plt.grid(axis="y", linestyle="--", alpha=0.7)
+        plt.xticks(rotation=45)
+        plt.show()
+
+    return amplitude_ratios
 
 
 
