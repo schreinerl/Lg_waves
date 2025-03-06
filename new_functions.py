@@ -765,7 +765,7 @@ other variables are float
     #with the earthquake specific cutoff distance we can now set tmin_coda:
     if codawindow == "cutoff":
         tmin_Coda = factor * (dist_Lg/3)
-        tmax_Coda = tmin_Coda + 50
+        tmax_Coda = tmin_Coda + 100
         print(f"coda window set from {tmin_Coda}-{tmax_Coda}s based on Lg cutoff distance")
         phase_distance['tmin_Coda'] = tmin_Coda
     elif codawindow == "S_phase":
