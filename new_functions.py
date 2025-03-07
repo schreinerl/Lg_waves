@@ -153,6 +153,64 @@ def select_ratio(wavecode, stations_with_amps):
     return Amp_Draw
 
 
+
+
+
+
+def get_Pn_time(dist_deg, velocity=6.6):
+    t_Pn = 111*dist_deg / velocity +25
+    return t_Pn
+
+
+def get_Sn_time(dist_deg, velocity=4):
+    t_Sn = 111 * dist_deg / velocity   + 25
+    return t_Sn
+
+
+
+'''
+
+def get_Pn_time(dist_deg, velocity=7):
+    from obspy.taup import TauPyModel
+
+    model = TauPyModel(model='ak135')
+    t_Pn = 111. * dist_deg / 8.0  # Default calculation
+
+    arrivals = model.get_travel_times(source_depth_in_km=0,
+                                      distance_in_degree=dist_deg, phase_list=["Pn"])
+
+    try:
+        t_Pn = arrivals[0].time
+    except IndexError as e:
+        if velocity:
+            t_Pn = dist_deg / velocity
+        else:
+            t_Pn = dist_deg / 8.0 
+
+    return t_Pn
+
+
+def get_Sn_time(dist_deg, velocity=4):
+    from obspy.taup import TauPyModel
+
+    model = TauPyModel(model='ak135')
+    t_Sn = 111. * dist_deg / 8.0 
+
+    arrivals = model.get_travel_times(source_depth_in_km=0,
+                                      distance_in_degree=dist_deg, phase_list=["Sn"])
+
+    try:
+        t_Sn = arrivals[0].time
+    except IndexError as e:
+        if velocity:
+            t_Sn = dist_deg / velocity  
+        
+
+    return t_Sn
+
+
+
+
 def get_Pn_time(dist_deg) :
 
 
@@ -192,21 +250,23 @@ def get_Sn_time(dist_deg) :
 
     return t_Sn
 
+'''
+
 def get_Pg_time(dist_deg) :
+    t_Pg = 111.*dist_deg/5.7 +25
+    #from obspy.taup import TauPyModel
 
-    from obspy.taup import TauPyModel
-
-    model = TauPyModel(model='ak135') 
-    t_Pg=111.*dist_deg/6.
-    
-    arrivals = model.get_travel_times(source_depth_in_km=0,
-                                  distance_in_degree=dist_deg,phase_list=["Pg"])
+    #model = TauPyModel(model='ak135') 
+    #t_Pg=111.*dist_deg/6. + 25
+   # 
+    #arrivals = model.get_travel_times(source_depth_in_km=0,
+    #                              distance_in_degree=dist_deg,phase_list=["Pg"])
 
 
-    try:
-        t_Pg=arrivals [0].time
-    except Exception as e:
-        t_Pg = dist_deg/5.7
+    #try:
+    #    t_Pg=arrivals [0].time +25
+    #except Exception as e:
+    ##    t_Pg = 111.*dist_deg/5.7 +25
         #print('no Pg ', dist_deg, e)
 
     return t_Pg
@@ -394,9 +454,10 @@ v_Pg=6.,tmincoda=300,tmaxcoda=320):
     dist_sectplot=dist_work[dist_index]
     t_Pn_plot=t_Pn_work[dist_index]
     t_Sn_plot=t_Sn_work[dist_index]
-    t_Lg_min_plot=dist_sectplot/v_Lg_max
-    t_Lg_max_plot=dist_sectplot/v_Lg_min
-    t_Pg_plot=dist_sectplot/v_Pg
+    t_Pg_plot=t_Pg_work[dist_index]
+    t_Lg_min_plot=dist_sectplot/v_Lg_max +25
+    t_Lg_max_plot=dist_sectplot/v_Lg_min + 25
+    #t_Pg_plot=dist_sectplot/v_Pg
     tmin_coda = [tmincoda] * len(t_Pg_plot)
     tmax_coda = [tmaxcoda] *len(t_Pg_plot)
     #t_Pg_plot_tauP = t_Pg_work[dist_index]
@@ -777,7 +838,7 @@ other variables are float
                 tsmax = float(t_Sn)
         tmin_Coda = factor * tsmax
         tmax_Coda = tmin_Coda + 100
-        print(f"coda window set from {tmin_Coda}-{tmax_Coda}s based on S wave arrival")
+        print(f"coda window set from {tmin_Coda}-{tmax_Coda}s based on S wave arrival at dist {distmax} and S time {tsmax}")
 
     #using this information we can calculate now all the amplitudes:
     #keep only station names that satisfy the two conditions, and delete all the traces of the unsufficient stations
