@@ -2068,3 +2068,198 @@ def update_event_file(file_path, event_name, station_data):
 
     df.to_csv(file_path)
     print(f"Updated {file_path} with event '{event_name}'.")
+
+
+
+
+
+from scipy.fftpack import hilbert
+import obspy
+def envelope_calculator(data):
+    hilb = hilbert(data)
+    data = (data ** 2 + hilb ** 2) ** 0.5
+    return data
+
+
+
+
+
+def envelopes_routine1(event, st_envelope, codastart=350, codaend=470, method='cutoff',  coda_dist_start=300, coda_dist_end=350, plotting=False, n_traces=50, snr=None, snr_window=None):
+    '''
+    Takes as input a stream with the envelopes. It subsequently calculates the smoothed envelopes with a moving averaging
+    window of 50s. These smooth envelopes are put in a new stream.
+    '''
+    st_envelope_smooth = obspy.Stream()
+    
+    for trace in st_envelope:
+        npts = len(trace.data)
+        samprate = trace.stats.sampling_rate
+        t = np.arange(0, npts / samprate, 1 / samprate)
+
+        window_length = min(50 * samprate, npts) 
+        if window_length % 2 == 0:
+            window_length -= 1
+        
+        yhat = savgol_filter(trace.data, int(window_length), 3) 
+        t = t[:len(yhat)]
+
+        tr_envelope_smooth = obspy.Trace(data=yhat, header=trace.stats)
+        st_envelope_smooth.append(tr_envelope_smooth)
+
+    if plotting:
+        smooth_plot_envelope(event, n_traces, st_envelope_smooth)
+
+    station_data = {}
+    
+    #Calculate the amplitude of the coda and the slope of the coda and the distance coda
+    #but also, calculate the noise level, and the snr of the coda window in its entirety as well as the snr of the last 20 seconds of the coda window
+
+    for trace in st_envelope_smooth:
+        dt = trace.stats.delta
+        station = trace.stats.station
+        startcoda = int(codastart / dt) 
+        #we have the noise in the stations_with_amplitudes for each event, so read in the noise amplitude and calculate the SNRs
+        
+        
+        endcoda = int(codaend / dt) 
+        startcoda_dist = int(coda_dist_start / dt)
+        endcoda_dist = int(coda_dist_end / dt)
+
+
+
+        
+        if station in snr:
+            snr_coda = snr[station]
+            snr_coda_end = snr_window[station]
+            
+
+        if startcoda >= len(trace.data) or endcoda > len(trace.data) or startcoda >= endcoda:
+            continue
+
+        coda = trace.data[startcoda:endcoda]
+        coda_dist = trace.data[startcoda_dist:endcoda_dist]
+
+        if len(coda) < 2 or len(coda_dist) < 2:
+            continue  
+
+        x_coda = np.linspace(0, (len(coda) - 1) * dt, len(coda))
+        x_coda_dist = np.linspace(0, (len(coda_dist) - 1) * dt, len(coda_dist))
+
+        coef_coda = np.polyfit(x_coda, coda, 1) if not np.all(coda == coda[0]) else [0, 0]
+        coef_coda_dist = np.polyfit(x_coda_dist, coda_dist, 1) if not np.all(coda_dist == coda_dist[0]) else [0, 0]
+
+        station_name = trace.stats.station 
+        if method == 'cutoff':
+            amplitude = (np.sqrt(np.dot(coda_dist, coda_dist.T)) / len(coda_dist))
+        elif method == 'S_phase':
+            amplitude = (np.sqrt(np.dot(coda, coda.T)) / len(coda))
+            
+        if snr:
+            station_data[station_name] = {
+            "amplitude": amplitude,
+            "coda_slope": coef_coda[0],
+            "coda_dist_slope": coef_coda_dist[0],
+            "snr_coda": snr_coda,
+            "snr_coda_end": snr_coda_end
+        }
+        else:
+            station_data[station_name] = {
+            "amplitude": amplitude,
+            "coda_slope": coef_coda[0],
+            "coda_dist_slope": coef_coda_dist[0]
+        }
+            
+
+    return station_data, st_envelope_smooth
+
+
+
+from scipy.signal import savgol_filter
+from random import randint
+def smooth_plot_envelope(time_string, n_traces,st_envelope, st, method='Cutoff distance',tmincoda_dist=442, tmaxcoda_dist=462,tmincoda_S = None, tmaxcoda_S= None,plotshow=False, savefig=True):
+    testing = [(randint(1, len(st))) for i in range(n_traces)]
+
+    plt.figure(figsize=(10,10))
+    for i in testing:
+        if i < len(st_envelope):
+            npts = len(st_envelope[i].data)
+            samprate = st_envelope[i].stats.sampling_rate #10000/700 
+            t = np.arange(0, npts / samprate, 1 / samprate)
+
+            #use a stable window length in s, while the window lenght in samples is dependant on the sample rate
+            
+            window_length = min(50*samprate, npts) # Ensure window_length is not greater than npts
+            if window_length % 2 == 0:
+                window_length -= 1
+            yhat = savgol_filter(st_envelope[i].data, int(window_length), 3) 
+            t = t[:len(yhat)]
+
+            #plt.semilogy(t,st_envelope[i])
+            plt.semilogy(t,yhat, color='red')
+            plt.ylim([1e-9,1e-4])
+            plt.title(f"Vertical component envelope {time_string}")
+            plt.ylabel("Energy")
+            plt.xlabel("Time (s)")
+            #plt.xlim([100,350])
+    plt.vlines(tmaxcoda_dist,ymax=1e-4,ymin=1e-9, label=f'coda window calculated with {method}',colors='g',linestyles='--')
+    plt.vlines(tmincoda_dist,ymax=1e-4,ymin=1e-9,colors='g',linestyles='--')
+    if tmincoda_S is not None and tmaxcoda_S is not None:
+        plt.vlines(tmaxcoda_S,ymax=1e-4,ymin=1e-9, label='coda window calculated with S-wave',colors='b',linestyles='--')
+        plt.vlines(tmincoda_S,ymax=1e-4,ymin=1e-9,colors='b',linestyles='--')
+    #plt.vlines(350,ymax=1e-4,ymin=1e-9, label='coda window similar to Galina&Shapiro 2024',colors='b',linestyles='--')
+    #plt.vlines(470,ymax=1e-4,ymin=1e-9,colors='b',linestyles='--')
+    plt.legend()
+    if savefig:
+        mag_dir = '/home/schreinl/Stage/Data/Metadata/'
+        with open(f"{mag_dir}{time_string}.txt", "r") as meta:
+            for line in meta:
+                if line.startswith("Magnitude:"):
+                    magnitude = float(line.split(":")[1].strip())
+        plt.savefig(f'/home/schreinl/Stage/Figures/SiteEffect/multiple_envelopes_{time_string}_{magnitude}_{method}_filtered.png', format='png')
+    if plotshow:
+        plt.show()
+    
+    return
+
+
+
+
+def create_coda_amplitude_dict(event_file='/home/schreinl/Stage/Data/eq_4_france.csv', codawindow="cutoff", factor=1.1,data_dir='Data1'):
+    eq_list = pd.read_csv(event_file)
+    amplitudes_dict = {}
+
+    for i in range(len(eq_list)):
+        start = UTCDateTime(eq_list["time"][i]) - 25
+        time_string = UTCDateTime.strftime(start, format="%Y_%m_%dT%H_%M_%S")
+        magnitude = eq_list["mag"][i]
+        
+        file_path = f"/home/schreinl/Stage/{data_dir}/{time_string}/{time_string}_envelope_amps_{codawindow}_fac_{factor}_dict.txt"
+        print(f"Checking file: {file_path}")
+        
+        if not os.path.exists(file_path):
+            print(f"File does not exist: {file_path}")
+            continue
+        
+        try:
+            with open(file_path, "r") as file:
+                amp_dict = json.load(file)
+            for station, data in amp_dict.items():
+                if station not in amplitudes_dict:
+                    amplitudes_dict[station] = [None] * i 
+                amplitudes_dict[station].append({
+                    "amplitude": data["amplitude"], 
+                    "time": time_string, 
+                    "magnitude": magnitude, 
+                    "snr_coda": data.get("snr_coda", None), 
+                    "snr_last_window": data.get("snr_coda_end", None)
+                })
+            
+            for station in amplitudes_dict:
+                if station not in amp_dict:
+                    amplitudes_dict[station].append(None)
+        except FileNotFoundError:
+            print(f"File not found: {file_path}")
+            for station in amplitudes_dict:
+                amplitudes_dict[station].append(None)
+
+    return amplitudes_dict
