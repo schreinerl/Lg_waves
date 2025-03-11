@@ -679,8 +679,9 @@ other variables are float
             A_Coda=0.
             A_LgAP=0.
             A_LgACoda=0.
-            tmin_Noise=t_Pn+Dtmin_Noise
-            tmax_Noise=t_Pn+Dtmax_Noise
+            #tmin_Noise=t_Pn+Dtmin_Noise
+            #tmax_Noise=t_Pn+Dtmax_Noise
+            
             tmin_Pn=t_Pn+Dtmin_Pn
             tmax_Pn=t_Pn+Dtmax_Pn
             tmin_Sn=t_Sn+Dtmin_Sn
@@ -694,6 +695,9 @@ other variables are float
                     tmin_Pg=dist/1000/vPg_max
                     tmax_Pg=dist/1000/vPg_min
                     trace_start=tr.stats.starttime - eq_start
+                    #the noise window is not related to any phase, but relative to the start if of the trace
+                    tmin_Noise = trace_start +5
+                    tmax_Noise = tmin_Noise + 30
                     dt=tr.stats.delta
                     nt=tr.stats.npts
                     trace_end=trace_start+dt*(nt-1)
@@ -824,6 +828,7 @@ other variables are float
     print("Reduced from  ", len(stations_with_SNR), " stations to  ", len(filtered_arr), " stations due to insufficient SNR or distance > " ,  dist_Lg)
     
     #with the earthquake specific cutoff distance we can now set tmin_coda:
+    #so here we base the cutoff distance only on the Lg wave
     if codawindow == "cutoff":
         tmin_Coda = factor * (dist_Lg/3)
         tmax_Coda = tmin_Coda + 100
@@ -1087,8 +1092,8 @@ def calc_amps(stations, st, Dtmin_Pn, Dtmax_Pn, Dtmin_Sn, Dtmax_Sn, vLg_min,vLg_
         A_Coda=0.
         A_LgAP=0.
         A_LgACoda=0.
-        tmin_Noise=float(t_Pn)+Dtmin_Noise
-        tmax_Noise=float(t_Pn)+Dtmax_Noise
+        #tmin_Noise=float(t_Pn)+Dtmin_Noise
+        #tmax_Noise=float(t_Pn)+Dtmax_Noise
         tmin_Pn=float(t_Pn)+Dtmin_Pn
         tmax_Pn=float(t_Pn)+Dtmax_Pn
         tmin_Sn=float(t_Sn)+Dtmin_Sn
@@ -1101,6 +1106,10 @@ def calc_amps(stations, st, Dtmin_Pn, Dtmax_Pn, Dtmin_Sn, Dtmax_Sn, vLg_min,vLg_
                 tminPg = float(dist)/1000/vPg_max
                 tmaxPg = float(dist)/1000/vPg_min
                 trace_start=tr.stats.starttime - eq_start
+                tmin_Noise = trace_start + 5
+                tmax_Noise = tmin_Noise + 30
+                
+                #print(tmax_Noise)
                 dt=tr.stats.delta
                 nt=tr.stats.npts
                 trace_end=trace_start+dt*(nt-1)
@@ -1132,6 +1141,7 @@ def calc_amps(stations, st, Dtmin_Pn, Dtmax_Pn, Dtmin_Sn, Dtmax_Sn, vLg_min,vLg_
                     imaxNoise=int((tmax_Noise-trace_start)/dt)
                     dataselectNoise=(datavector[iminNoise:imaxNoise])
                     A_Noise=np.sqrt(np.dot(dataselectNoise,np.transpose(dataselectNoise)))/len(dataselectNoise)
+                    #print(A_Noise)
                 if (trace_start<tminPg) and (trace_end>tmaxPg) :
                     iminPg=int((tminPg-trace_start)/dt)
                     imaxPg=int((tmaxPg-trace_start)/dt)
@@ -2224,7 +2234,7 @@ def smooth_plot_envelope(time_string, n_traces,st_envelope, st, method='Cutoff d
 
 
 
-def create_coda_amplitude_dict(event_file='/home/schreinl/Stage/Data/eq_4_france.csv', codawindow="cutoff", factor=1.1,data_dir='Data1'):
+def create_coda_amplitude_dict(event_file='/home/schreinl/Stage/Data/eq_4_france.csv', codawindow="cutoff", factor=1.1,fmin=3,fmax=4,data_dir='Data1'):
     eq_list = pd.read_csv(event_file)
     amplitudes_dict = {}
 
@@ -2233,7 +2243,7 @@ def create_coda_amplitude_dict(event_file='/home/schreinl/Stage/Data/eq_4_france
         time_string = UTCDateTime.strftime(start, format="%Y_%m_%dT%H_%M_%S")
         magnitude = eq_list["mag"][i]
         
-        file_path = f"/home/schreinl/Stage/{data_dir}/{time_string}/{time_string}_envelope_amps_{codawindow}_fac_{factor}_dict.txt"
+        file_path = f"/home/schreinl/Stage/{data_dir}/{time_string}/{time_string}_envelope_amps_{codawindow}_fac_{factor}_{fmin}_{fmax}Hz_dict.txt"
         print(f"Checking file: {file_path}")
         
         if not os.path.exists(file_path):
