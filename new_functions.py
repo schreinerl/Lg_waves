@@ -2186,8 +2186,8 @@ def envelopes_routine1(event, st_envelope, codastart=350, codaend=470, method='c
 
 from scipy.signal import savgol_filter
 from random import randint
-def smooth_plot_envelope(time_string, n_traces,st_envelope, st, method='Cutoff distance',tmincoda_dist=442, tmaxcoda_dist=462,tmincoda_S = None, tmaxcoda_S= None,plotshow=False, savefig=True):
-    testing = [(randint(1, len(st))) for i in range(n_traces)]
+def smooth_plot_envelope(time_string, n_traces,st_envelope, method='Cutoff distance',tmincoda_dist=442, tmaxcoda_dist=462,tmincoda_S = None, tmaxcoda_S= None,plotshow=False, savefig=True):
+    testing = [(randint(1, len(st_envelope))) for i in range(n_traces)]
 
     plt.figure(figsize=(10,10))
     for i in testing:
