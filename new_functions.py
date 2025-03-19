@@ -156,7 +156,7 @@ def select_ratio(wavecode, stations_with_amps):
 
 
 
-
+'''
 def get_Pn_time(dist_deg, velocity=6.6):
     t_Pn = 111*dist_deg / velocity +25
     return t_Pn
@@ -209,7 +209,7 @@ def get_Sn_time(dist_deg, velocity=4):
     return t_Sn
 
 
-
+'''
 
 def get_Pn_time(dist_deg) :
 
@@ -1934,7 +1934,7 @@ def select_ratio_dict(wavecode, stations_with_amps):
 
 
 
-def site_effect(eq_file='/home/schreinl/Stage/Data/eq_4_france.csv', codafile='envelope_amps_fac_1.5_dict',sample_size=25,ref_station1 = "SSB", ref_station2 = "ECH", ratio_plot = False):
+def site_effect_old(eq_file='/home/schreinl/Stage/Data/eq_4_france.csv', codafile='envelope_amps_fac_1.5_dict',sample_size=25,ref_station1 = "SSB", ref_station2 = "ECH", ratio_plot = False):
     '''
     Function calculates the site effect for each station by building the median amplitude ratio of each station to the reference station.
     For each event and for each station the site effect is calculated.
@@ -2273,3 +2273,84 @@ def create_coda_amplitude_dict(event_file='/home/schreinl/Stage/Data/eq_4_france
                 amplitudes_dict[station].append(None)
 
     return amplitudes_dict
+
+
+
+def envelope_processing(st,stations,time_string,station_ref,filtered_stations_with_SNR,Dtmin_Pn, Dtmax_Pn, Dtmin_Sn, Dtmax_Sn, vLg_min,vLg_max,vPg_min,vPg_max, tcoda_start, coda_duration, Dtmin_Noise, Dtmax_Noise, eq_start):
+    '''
+
+    '''
+    
+    st_envelope = obspy.Stream()
+    smallest = 7000
+    for tr in st:
+        data_envelope = envelope_calculator(tr.data)
+        npts = tr.stats.npts
+        if npts >= smallest:
+            samprate = tr.stats.sampling_rate
+            t = np.arange(0, npts / samprate, 1 / samprate)
+            tr_envelope = obspy.Trace(data=data_envelope, header=tr.stats)
+            st_envelope.append(tr_envelope)
+    print("calculated Envelopes")
+    amplitudes_full = calc_amps(stations, st, Dtmin_Pn, Dtmax_Pn, Dtmin_Sn, Dtmax_Sn, vLg_min,vLg_max,vPg_min,vPg_max, tcoda_start, tcoda_start+coda_duration, Dtmin_Noise, Dtmax_Noise, eq_start)
+    amplitudes_small = calc_amps(stations, st, Dtmin_Pn, Dtmax_Pn, Dtmin_Sn, Dtmax_Sn, vLg_min,vLg_max,vPg_min,vPg_max, tcoda_start, tcoda_start+coda_duration, Dtmin_Noise, Dtmax_Noise, eq_start)
+    SNR_dict = select_ratio_dict("Coda_Noise", amplitudes_full)
+    SNR_dict_small = select_ratio_dict("Coda_Noise", amplitudes_small)
+    envelopes_amps, st_smooth = envelopes_routine1(time_string, st_envelope, coda_dist_start=tcoda_start, coda_dist_end=tcoda_start + coda_duration, plotting=False, method='cutoff', snr=SNR_dict, snr_window=SNR_dict_small)
+    filtered_station_names = set(row[1] for row in filtered_stations_with_SNR)
+    filtered_smooth_stream = obspy.Stream()
+    filtered_stream = obspy.Stream()
+    for trace in st_smooth:
+        if trace.stats.station in filtered_station_names:
+            filtered_smooth_stream.append(trace)
+    for trace in st_envelope:
+        if trace.stats.station in filtered_station_names:
+            filtered_stream.append(trace) 
+    print('filtered out traces with large distance or weak SNR')
+
+    stationref = station_ref
+    for i,tr in enumerate(filtered_stream):
+        if tr.stats.station == stationref:
+            idx_reference_filt = i
+
+    for i,tr in enumerate(st_envelope):
+        if tr.stats.station == stationref:
+            idx_reference = i
+
+    valid = 0
+    invalid = 0
+    st_double_filt = obspy.Stream()
+    for i in range(len(filtered_stream)):
+        station = filtered_stream[i].stats.station
+        if station in envelopes_amps:
+            if envelopes_amps[station]['snr_coda'] > 2 and envelopes_amps[station]['snr_coda_end'] > 2:
+                valid += 1
+                st_double_filt.append(filtered_stream[i])
+            else:
+                invalid += 1
+        else:
+            invalid += 1
+    print('after filtering out stations with weak SNR in the coda window:')
+    print(valid, "valid stations")
+    print(invalid, "invalid stations")
+
+    return filtered_stream, st_envelope, envelopes_amps, idx_reference,idx_reference_filt, st_double_filt
+
+
+
+
+
+def site_effect():
+    '''
+    Before the calling of this function all the data has to be downloaded, the SNR has to be calculated, 
+    stations filtered out by low SNR and too large distance, and the coda window is set.
+    Then the function can be called. It takes an event catalogue, uses the function envelope_processing(), which
+    computed the envelopes, 
+    '''
+
+
+
+
+
+
+    return
