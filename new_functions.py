@@ -155,9 +155,10 @@ def select_ratio(wavecode, stations_with_amps):
 
 
 
-
 '''
-def get_Pn_time(dist_deg, velocity=6.6):
+
+
+def get_Pn_time(dist_deg, velocity=6.9):
     t_Pn = 111*dist_deg / velocity +25
     return t_Pn
 
@@ -168,7 +169,7 @@ def get_Sn_time(dist_deg, velocity=4):
 
 
 
-'''
+
 
 def get_Pn_time(dist_deg, velocity=7):
     from obspy.taup import TauPyModel
@@ -208,7 +209,6 @@ def get_Sn_time(dist_deg, velocity=4):
 
     return t_Sn
 
-
 '''
 
 def get_Pn_time(dist_deg) :
@@ -224,7 +224,7 @@ def get_Pn_time(dist_deg) :
 
 
     try:
-        t_Pn=arrivals [0].time
+        t_Pn=arrivals [0].time +25
     except Exception as e:
         print('no Pn ', dist_deg, e)
         
@@ -244,13 +244,13 @@ def get_Sn_time(dist_deg) :
 
 
     try:
-        t_Sn=arrivals [0].time
+        t_Sn=arrivals [0].time + 25
     except Exception as e:
         print('no Sn ', dist_deg, e)
 
     return t_Sn
 
-'''
+
 
 def get_Pg_time(dist_deg) :
     t_Pg = 111.*dist_deg/5.7 +25
@@ -2234,7 +2234,7 @@ def smooth_plot_envelope(time_string, n_traces,st_envelope, method='Cutoff dista
 
 
 
-def create_coda_amplitude_dict(event_file='/home/schreinl/Stage/Data/eq_4_france.csv', codawindow="cutoff", factor=1.1,fmin=3,fmax=4,data_dir='Data1'):
+def create_coda_amplitude_dict(event_file='/home/schreinl/Stage/Data/eq_4_france.csv', codawindow="cutoff", factor=1.1, fmin=3, fmax=4, data_dir='Data1'):
     eq_list = pd.read_csv(event_file)
     amplitudes_dict = {}
 
@@ -2242,6 +2242,8 @@ def create_coda_amplitude_dict(event_file='/home/schreinl/Stage/Data/eq_4_france
         start = UTCDateTime(eq_list["time"][i]) - 25
         time_string = UTCDateTime.strftime(start, format="%Y_%m_%dT%H_%M_%S")
         magnitude = eq_list["mag"][i]
+        latitude = eq_list["latitude"][i]
+        longitude = eq_list["longitude"][i]
         
         file_path = f"/home/schreinl/Stage/{data_dir}/{time_string}/{time_string}_envelope_amps_{codawindow}_fac_{factor}_{fmin}_{fmax}Hz_dict.txt"
         print(f"Checking file: {file_path}")
@@ -2260,6 +2262,8 @@ def create_coda_amplitude_dict(event_file='/home/schreinl/Stage/Data/eq_4_france
                     "amplitude": data["amplitude"], 
                     "time": time_string, 
                     "magnitude": magnitude, 
+                    "latitude": latitude,
+                    "longitude": longitude,
                     "snr_coda": data.get("snr_coda", None), 
                     "snr_last_window": data.get("snr_coda_end", None)
                 })
