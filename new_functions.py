@@ -15,7 +15,7 @@ def big_downloader2(datacenters, start, end, eq_lon, eq_lat, distmin, distmax, d
     maxlon_st = 16
 
     # Write the earthquake info in a file
-    events_list = Client("USGS").get_events(
+    events_list = Client("EMSC").get_events(
         minlatitude=37,
         maxlatitude=50,
         minlongitude=-5,
@@ -2349,7 +2349,7 @@ def site_effect():
     Before the calling of this function all the data has to be downloaded, the SNR has to be calculated, 
     stations filtered out by low SNR and too large distance, and the coda window is set.
     Then the function can be called. It takes an event catalogue, uses the function envelope_processing(), which
-    computed the envelopes, 
+    computed the envelopes, then filters out stations that have a too low coda SNR in the set window. 
     '''
 
 
