@@ -15,11 +15,11 @@ def big_downloader2(datacenters, start, end, eq_lon, eq_lat, distmin, distmax, d
     maxlon_st = 16
 
     # Write the earthquake info in a file
-    events_list = Client("EMSC").get_events(
+    events_list = Client("USGS").get_events(
         minlatitude=37,
         maxlatitude=50,
         minlongitude=-5,
-        maxlongitude=17,
+        maxlongitude=20,
         minmagnitude=3,
         starttime=start,
         endtime=end
@@ -801,6 +801,7 @@ other variables are float
             #print(f"Distance where 90% of SNR values are above 2: {percentile_distance}")
         else:
             print("No valid SNR values above 2.")
+            return None,None,None,None,None,None,None
         #calculate the slope for for the regression snr = a*dist + b, when dist < percentile_distance, so sufficient SNR
         coef = np.polyfit(dist_vals[dist_vals < percentile_distance],np.nan_to_num(SNR_vals[dist_vals < percentile_distance], nan=0.0, posinf=0.0, neginf=0.0),1)
         #calculate the slope for the regression snr = a*dist + b, when dist > percentile_distance, so insufficient SNR
@@ -2341,16 +2342,194 @@ def envelope_processing(st,stations,time_string,station_ref,filtered_stations_wi
     return filtered_stream, st_envelope, envelopes_amps, idx_reference,idx_reference_filt, st_double_filt
 
 
+def reference_stations_median(reference_stations,eventfile, fmin, fmax):
+    '''
+    calculates the ratios of the amplitudes within the coda window for each reference station and the main
+    reference station ECH, and takes the median of it
+
+    takes:
+    - reference stations as a list of str
+    - eventfile as a str of the path of the event catalog
+    - fmin and fmax which are the corners of the applied filter as floats
+    returns:
+    - dictionary, the median of each ratio reference station/main reference station
+    '''
+
+    ratios_dict = {}    
+    amplitudes_dict = create_coda_amplitude_dict(event_file=eventfile, codawindow="cutoff",fmin=fmin,fmax=fmax, factor=1.1,data_dir='Data1')
 
 
 
-def site_effect():
+    for station in reference_stations:
+        if station == "ECH":
+            continue
+        
+        ech_amplitudes = [amp for amp in amplitudes_dict["ECH"] if amp is not None and amp['snr_coda'] > 2 and amp['snr_last_window'] > 2]
+        ref_amplitudes = [amp for amp in amplitudes_dict[station] if amp is not None and amp['snr_coda'] > 2 and amp['snr_last_window'] > 2]
+        
+        ech_times = set(amp['time'] for amp in ech_amplitudes)
+        ref_times = set(amp['time'] for amp in ref_amplitudes)
+        
+        common_times = ech_times.intersection(ref_times)
+        
+        ratios = []
+        for time in common_times:
+            ech_amp = next(amp['amplitude'] for amp in ech_amplitudes if amp['time'] == time)
+            ref_amp = next(amp['amplitude'] for amp in ref_amplitudes if amp['time'] == time)
+            ratio = ech_amp / ref_amp
+            ratios.append(ratio)
+        
+        ratios_dict[f"{station}"] = ratios
+
+    ref_median_dict = {key: np.median(value) for key, value in ratios_dict.items() if value}
+
+    return ref_median_dict
+
+
+
+def site_effect_dict(eventfile, fmin,fmax,reference_stations):
+    '''
+    Function that finally calculates the site effects, for each station and event.
+    If for an event ECH was recording, this is used for reference. If not, the closest of the other reference stations
+    in case it was recording should be used. This is done for each possible station-event combination. For each ratio that
+    is built, we write in the dict the ratio, as well as info on the event and the used reference station.
+
+    Input:
+    - eventfile, str of path of event catalog
+    - fmin and fmax, corners of the applied filter
+    - reference_stations, list of strings with the names of the reference stations
+
+    Returns:
+    - dictionary of site effects with its belonging info
+    '''
+
+
+    site_effect = {}
+    amplitudes_dict = create_coda_amplitude_dict(event_file=eventfile, codawindow="cutoff",fmin=fmin,fmax=fmax, factor=1.1,data_dir='Data1')
+    ref_median_dict = reference_stations_median(reference_stations,eventfile,fmin,fmax)
+    num_events = len(next(iter(amplitudes_dict.values())))
+
+    for event in range(num_events):
+        ech_amp = None
+        reference_station = None
+
+        if "ECH" in amplitudes_dict and event < len(amplitudes_dict["ECH"]):
+            ech_entry = amplitudes_dict["ECH"][event]
+            if ech_entry and ech_entry.get("snr_coda", 0) > 2:
+                ech_amp = ech_entry["amplitude"]
+                reference_station = "ECH"
+
+        if ech_amp is None:
+            for ref in reference_stations:
+                if ref in amplitudes_dict and event < len(amplitudes_dict[ref]):
+                    ref_entry = amplitudes_dict[ref][event]
+                    if ref_entry and ref_entry.get("snr_coda", 0) > 2:
+                        ref_amp = ref_entry["amplitude"]
+                        ref_median_ratio = ref_median_dict.get(ref, None)
+                        
+                        if ref_median_ratio is not None:
+                            ech_amp = ref_amp * ref_median_ratio 
+                            reference_station = ref
+                            print(f'used reference station {reference_station}')
+                        break 
+        if ech_amp is None:
+            continue
+
+        for station in amplitudes_dict:
+            if event < len(amplitudes_dict[station]): 
+                station_entry = amplitudes_dict[station][event]
+                if station_entry and station_entry.get("snr_coda", 0) > 2:
+                    station_amp = station_entry["amplitude"]
+                    ratio = station_amp / ech_amp 
+                    magnitude = station_entry["magnitude"]
+                    latitude = station_entry['latitude']
+                    longitude = station_entry['longitude']
+
+                    if station not in site_effect and ratio <= 100:
+                        site_effect[station] = []
+                    site_effect[station].append({
+                        "ratio": ratio,
+                        "time": station_entry["time"],
+                        "reference_station": reference_station,
+                        "magnitude": magnitude,
+                        "latitude" : latitude,
+                        "longitude" : longitude
+                    })
+    return site_effect
+
+def site_effect_overall(fmin,fmax, reference_stations, frequenciesmin=None, frequenciesmax=None, method='single', eventfile='/home/schreinl/Stage/Data/big_box_4.5.csv'):
     '''
     Before the calling of this function all the data has to be downloaded, the SNR has to be calculated, 
-    stations filtered out by low SNR and too large distance, and the coda window is set.
-    Then the function can be called. It takes an event catalogue, uses the function envelope_processing(), which
-    computed the envelopes, then filters out stations that have a too low coda SNR in the set window. 
+    stations filtered out by low SNR and too large distance, and the coda window is set. Then after that, the envelopes 
+    are calculated, and the slopes and amplitudes within the coda window are calculated and saved to disk in a dict form.
+    After this point this function can be called, which handles all the big data and post-processig steps which
+    do not require any computational power. 
+
+    Required arguments:
+    - fmin, fmax, which are the borders of the frequency windows for which we filtered
+    - reference_stations, which is a list of strings, containing the names of the reference stations
+    - eventfile, which contains the catalog of the events
+    - method: this decides if we handle only a single frequency or multiple ones
+
+    The workflow in this function is the following:
+
+    - reading in from all the amplitudes in the coda time windows of all the events and stations
+    - writing the amplitude along with the event info and the snr in the window in one dict for all the stations
+    - then finally w
     '''
+
+
+    #first handling the case when we only use a single frequency
+    if method == 'single':
+        # reading in a dict which contains all the amplitudes and snr for all the stations and events
+        site_effect = site_effect_dict(eventfile, fmin, fmax, reference_stations)
+        site_effect_median = {station: (np.median(ratios), np.std(ratios)) for station, ratios in site_effect.items()}
+        
+        return site_effect_median
+    
+    #second handling the case of multiple frequencies
+    #in this case we take lists for the minimum and maximum frequency, and we get rid of outliers in this case
+    #
+
+    elif method == 'multiple':
+        site_effect_median = {}
+
+        for i in range(len(frequenciesmin)):
+            amplitudes_dict = create_coda_amplitude_dict(
+                event_file=eventfile, 
+                codawindow="cutoff", 
+                fmin=frequenciesmin[i], fmax=frequenciesmax[i], factor=1.1, data_dir='Data1'
+            )
+            
+            site_effect = site_effect_dict(eventfile)
+            
+
+            site_effect_median_std = {}
+            for station, ratios in site_effect.items():
+                ratios = np.array(ratios)
+
+                Z = (ratios - np.mean(ratios)) / np.std(ratios)
+                outlier_indices = np.where(Z > 1.5)[0]
+
+                ratios_filtered = np.delete(ratios, outlier_indices)
+
+                median_before = np.median(ratios)
+                std_before = np.std(ratios)
+                median_after = np.median(ratios_filtered)
+                std_after = np.std(ratios_filtered)
+
+                site_effect_median_std[station] = {
+                    "median_before": median_before,
+                    "std_before": std_before,
+                    "num_points_before": len(ratios),
+                    "median_after": median_after,
+                    "std_after": std_after,
+                    "num_points_after": len(ratios_filtered)
+                }
+
+            site_effect_medians[f"{fmin[i]}-{fmax[i]}Hz"] = site_effect_median_std
+
+        print(site_effect_medians)
 
 
 
@@ -2358,3 +2537,36 @@ def site_effect():
 
 
     return
+
+
+
+
+
+
+
+
+
+def get_color(value):
+    """
+    Returns an RGB color based on a linear color scale:
+    - Blue to White for [0.1, 1]
+    - White to Red for [1, 10]
+    """
+    import matplotlib.colors as mcolors
+    vmin, vmid, vmax = 0.1, 1, 10
+    color_low = np.array(mcolors.to_rgb("blue")) 
+    color_mid = np.array(mcolors.to_rgb("white"))
+    color_high = np.array(mcolors.to_rgb("red")) 
+   
+    if value <= vmin:
+        return mcolors.to_hex(color_low)
+    elif vmin < value <= vmid:
+        t = (value - vmin) / (vmid - vmin)
+        color = (1 - t) * color_low + t * color_mid
+    elif vmid < value <= vmax:
+        t = (value - vmid) / (vmax - vmid)
+        color = (1 - t) * color_mid + t * color_high
+    else:
+        return mcolors.to_hex(color_high)
+    
+    return mcolors.to_hex(color)
