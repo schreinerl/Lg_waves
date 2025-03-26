@@ -2235,7 +2235,7 @@ def smooth_plot_envelope(time_string, n_traces,st_envelope, method='Cutoff dista
 
 
 
-def create_coda_amplitude_dict(event_file='/home/schreinl/Stage/Data/eq_4_france.csv', codawindow="cutoff", factor=1.1, fmin=3, fmax=4, data_dir='Data1'):
+def create_coda_amplitude_dict(event_file='/home/schreinl/Stage/Data/eq_4_france.csv', codawindow="cutoff", factor=1.1, fmin=3, fmax=4, data_dir='Data1',envelope_name='envelope_amps'):
     eq_list = pd.read_csv(event_file)
     amplitudes_dict = {}
 
@@ -2246,7 +2246,7 @@ def create_coda_amplitude_dict(event_file='/home/schreinl/Stage/Data/eq_4_france
         latitude = eq_list["latitude"][i]
         longitude = eq_list["longitude"][i]
         
-        file_path = f"/home/schreinl/Stage/{data_dir}/{time_string}/{time_string}_envelope_amps_{codawindow}_fac_{factor}_{fmin}_{fmax}Hz_dict.txt"
+        file_path = f"/home/schreinl/Stage/{data_dir}/{time_string}/{time_string}_{envelope_name}_{codawindow}_fac_{factor}_{fmin}_{fmax}Hz_dict.txt"
         print(f"Checking file: {file_path}")
         
         if not os.path.exists(file_path):
@@ -2342,7 +2342,7 @@ def envelope_processing(st,stations,time_string,station_ref,filtered_stations_wi
     return filtered_stream, st_envelope, envelopes_amps, idx_reference,idx_reference_filt, st_double_filt
 
 
-def reference_stations_median(reference_stations,eventfile, fmin, fmax):
+def reference_stations_median(reference_stations,eventfile, fmin, fmax,envelope_name='envelope_amps'):
     '''
     calculates the ratios of the amplitudes within the coda window for each reference station and the main
     reference station ECH, and takes the median of it
@@ -2356,7 +2356,7 @@ def reference_stations_median(reference_stations,eventfile, fmin, fmax):
     '''
 
     ratios_dict = {}    
-    amplitudes_dict = create_coda_amplitude_dict(event_file=eventfile, codawindow="cutoff",fmin=fmin,fmax=fmax, factor=1.1,data_dir='Data1')
+    amplitudes_dict = create_coda_amplitude_dict(event_file=eventfile, codawindow="cutoff",fmin=fmin,fmax=fmax, factor=1.1,data_dir='Data1',envelope_name=envelope_name)
 
 
 
@@ -2387,7 +2387,7 @@ def reference_stations_median(reference_stations,eventfile, fmin, fmax):
 
 
 
-def site_effect_dict(eventfile, fmin,fmax,reference_stations):
+def site_effect_dict(eventfile, fmin,fmax,reference_stations,envelope_name='envelope_amps'):
     '''
     Function that finally calculates the site effects, for each station and event.
     If for an event ECH was recording, this is used for reference. If not, the closest of the other reference stations
@@ -2405,7 +2405,7 @@ def site_effect_dict(eventfile, fmin,fmax,reference_stations):
 
 
     site_effect = {}
-    amplitudes_dict = create_coda_amplitude_dict(event_file=eventfile, codawindow="cutoff",fmin=fmin,fmax=fmax, factor=1.1,data_dir='Data1')
+    amplitudes_dict = create_coda_amplitude_dict(event_file=eventfile, codawindow="cutoff",fmin=fmin,fmax=fmax, factor=1.1,data_dir='Data1',envelope_name=envelope_name)
     ref_median_dict = reference_stations_median(reference_stations,eventfile,fmin,fmax)
     num_events = len(next(iter(amplitudes_dict.values())))
 
@@ -2445,19 +2445,21 @@ def site_effect_dict(eventfile, fmin,fmax,reference_stations):
                     latitude = station_entry['latitude']
                     longitude = station_entry['longitude']
 
-                    if station not in site_effect and ratio <= 100:
+                    if station not in site_effect:
                         site_effect[station] = []
-                    site_effect[station].append({
-                        "ratio": ratio,
-                        "time": station_entry["time"],
-                        "reference_station": reference_station,
-                        "magnitude": magnitude,
-                        "latitude" : latitude,
-                        "longitude" : longitude
-                    })
+                    if ratio <= 100:
+                        site_effect[station].append({
+                            "ratio": ratio,
+                            "time": station_entry["time"],
+                            "reference_station": reference_station,
+                            "magnitude": magnitude,
+                            "latitude": latitude,
+                            "longitude": longitude
+                        })
+
     return site_effect
 
-def site_effect_overall(fmin,fmax, reference_stations, frequenciesmin=None, frequenciesmax=None, method='single', eventfile='/home/schreinl/Stage/Data/big_box_4.5.csv'):
+def site_effect_overall(fmin,fmax, reference_stations, frequenciesmin=None, frequenciesmax=None, method='single', eventfile='/home/schreinl/Stage/Data/big_box_4.5.csv',map_plot=False,envelope_name='envelope_amps'):
     '''
     Before the calling of this function all the data has to be downloaded, the SNR has to be calculated, 
     stations filtered out by low SNR and too large distance, and the coda window is set. Then after that, the envelopes 
@@ -2477,37 +2479,52 @@ def site_effect_overall(fmin,fmax, reference_stations, frequenciesmin=None, freq
     - writing the amplitude along with the event info and the snr in the window in one dict for all the stations
     - then finally w
     '''
-
-
     #first handling the case when we only use a single frequency
+
     if method == 'single':
-        # reading in a dict which contains all the amplitudes and snr for all the stations and events
-        site_effect = site_effect_dict(eventfile, fmin, fmax, reference_stations)
-        site_effect_median = {station: (np.median(ratios), np.std(ratios)) for station, ratios in site_effect.items()}
+     # reading in a dict which contains all the amplitudes and snr for all the stations and events
+
+        site_effect = site_effect_dict(eventfile, fmin, fmax, reference_stations, envelope_name=envelope_name)
+        
+        site_effect_median = {}
+        for station, events in site_effect.items():
+            ratios = np.array([event['ratio'] for event in events])
+            
+            Z = (ratios - np.mean(ratios)) / np.std(ratios)
+            outlier_indices = np.where(Z > 1.5)[0]
+            
+            ratios_filtered = np.delete(ratios, outlier_indices)
+            
+            site_effect_median[station] = {
+                "median_before": np.median(ratios),
+                "std_before": np.std(ratios),
+                "num_points_before": len(ratios),
+                "median_after": np.median(ratios_filtered),
+                "std_after": np.std(ratios_filtered),
+                "num_points_after": len(ratios_filtered)
+            }
+        
+        if map_plot:
+            map_result = map_site_effect(fmin, fmax, site_effect_median)
+            return site_effect_median, map_result
         
         return site_effect_median
-    
+
     #second handling the case of multiple frequencies
     #in this case we take lists for the minimum and maximum frequency, and we get rid of outliers in this case
-    #
+    # conflict: 
 
     elif method == 'multiple':
-        site_effect_median = {}
+        site_effect_medians = {}
 
-        for i in range(len(frequenciesmin)):
-            amplitudes_dict = create_coda_amplitude_dict(
-                event_file=eventfile, 
-                codawindow="cutoff", 
-                fmin=frequenciesmin[i], fmax=frequenciesmax[i], factor=1.1, data_dir='Data1'
-            )
-            
-            site_effect = site_effect_dict(eventfile)
+        for i in range(len(frequenciesmin)):    
+            site_effect = site_effect_dict(eventfile,frequenciesmin[i],frequenciesmax[i], reference_stations,envelope_name=envelope_name)
             
 
             site_effect_median_std = {}
             for station, ratios in site_effect.items():
                 ratios = np.array(ratios)
-
+                # 
                 Z = (ratios - np.mean(ratios)) / np.std(ratios)
                 outlier_indices = np.where(Z > 1.5)[0]
 
@@ -2527,16 +2544,16 @@ def site_effect_overall(fmin,fmax, reference_stations, frequenciesmin=None, freq
                     "num_points_after": len(ratios_filtered)
                 }
 
-            site_effect_medians[f"{fmin[i]}-{fmax[i]}Hz"] = site_effect_median_std
+            site_effect_medians[f"{frequenciesmin[i]}-{frequenciesmax[i]}Hz"] = site_effect_median_std
 
-        print(site_effect_medians)
-
-
+        
 
 
 
 
-    return
+
+
+    return site_effect_medians
 
 
 
@@ -2570,3 +2587,117 @@ def get_color(value):
         return mcolors.to_hex(color_high)
     
     return mcolors.to_hex(color)
+
+
+
+def get_color_logstep(value):
+        import matplotlib.colors as mcolors
+        if value <= 0: 
+            return "blue"
+        
+        log_val = np.log10(value) 
+        norm_val = (log_val - np.log10(0.1)) / (np.log10(10) - np.log10(0.1)) 
+
+        colormap = mcolors.LinearSegmentedColormap.from_list("log_colormap", ["blue", "white", "red"])
+        
+        return mcolors.to_hex(colormap(norm_val))
+
+def color_scale(min_value, max_value, num_steps=100):
+    return [get_color_logstep(value) for value in np.logspace(np.log10(min_value), np.log10(max_value), num_steps)]
+
+
+
+def map_site_effect(fmin,fmax,site_effect_medians,method='multiple'):
+    import glob
+    event_map = folium.Map(location=[46.2145, -0.7295], zoom_start=5)
+    data_directory = '/home/schreinl/Stage/Data1/'
+    metadata_directory = os.path.join(data_directory, "Metadata/")
+    event_locations = []
+    for metadata_file in os.listdir(metadata_directory):
+        metadata_path = os.path.join(metadata_directory, metadata_file)
+        if os.path.isfile(metadata_path):
+            try:
+                with open(metadata_path, 'r') as file:
+                    lines = file.readlines()
+                    lat, lon = None, None
+                    
+                    for line in lines:
+                        if line.startswith("Latitude:"):
+                            lat = float(line.split(":")[1].strip())
+                        elif line.startswith("Longitude:"):
+                            lon = float(line.split(":")[1].strip())
+                    
+                    if lat is not None and lon is not None:
+                        event_locations.append((lat, lon))
+            except Exception as e:
+                print(f"Error reading {metadata_path}: {e}")
+
+
+    plotted_stations = {}
+
+    for event_dir in os.listdir(data_directory):
+        event_path = os.path.join(data_directory, event_dir)
+        if os.path.isdir(event_path):
+            file_pattern = os.path.join(event_path, f'*{fmin}_{fmax}Hz_unfiltered_stations_SNR.txt')
+            #file_pattern = os.path.join(event_path, f'*_new_cutoff_fac_1.1_{fmin}_{fmax}Hz_dict.txt')
+            matching_files = glob.glob(file_pattern)
+            
+            for file_path in matching_files:
+                try:
+                    with open(file_path, 'r') as file:
+                        data = json.load(file)
+                        
+                        for station in data:
+                            if len(station) >= 4:
+                                network = station[0]
+                                name = station[1]
+                                lat = float(station[2])
+                                lon = float(station[3])
+                                station_id = (lat, lon)
+                                
+                                plotted_stations[station_id] = (network, name)
+
+                except Exception as e:
+                    print(f"Error processing {file_path}: {e}")
+
+    print('done reading in')
+
+    from branca.colormap import StepColormap
+
+    log_values = np.logspace(np.log10(0.1), np.log10(10), num=100)
+    color_list = [get_color_logstep(value) for value in log_values]
+
+    step_values = np.logspace(np.log10(0.1), np.log10(10), num=5)  
+    step_colors = [get_color_logstep(value) for value in step_values]
+
+    colormap = StepColormap(
+        step_colors, 
+        vmin=0.1, 
+        vmax=10, 
+        index=step_values
+    )
+
+    colormap.add_to(event_map)
+    colormap.caption = f"Median Site Effect ({fmin}-{fmax}Hz)"
+
+    for (lat, lon), (network, name) in plotted_stations.items():
+        if method == 'single':
+            station_medians = site_effect_medians
+        elif method == 'multiple':
+            station_medians = site_effect_medians.get(f'{fmin}-{fmax}Hz', {}).get(name, {})
+        median_before = station_medians.get('median_after', None)
+
+        if median_before is not None:
+            color = get_color(median_before)
+            folium.CircleMarker(
+                location=[lat, lon],
+                radius=6,
+                tooltip=f"{network}.{name} ({lat}, {lon}), Median: {median_before}",
+                color="black",
+                weight=1,
+                fill=True,
+                fill_color=color,
+                fill_opacity=1
+            ).add_to(event_map)
+
+    return event_map
