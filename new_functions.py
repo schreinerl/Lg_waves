@@ -2247,10 +2247,10 @@ def create_coda_amplitude_dict(event_file='/home/schreinl/Stage/Data/eq_4_france
         longitude = eq_list["longitude"][i]
         
         file_path = f"/home/schreinl/Stage/{data_dir}/{time_string}/{time_string}_{envelope_name}_{codawindow}_fac_{factor}_{fmin}_{fmax}Hz_dict.txt"
-        print(f"Checking file: {file_path}")
+        #print(f"Checking file: {file_path}")
         
         if not os.path.exists(file_path):
-            print(f"File does not exist: {file_path}")
+            #print(f"File does not exist: {file_path}")
             continue
         
         try:
@@ -2273,7 +2273,7 @@ def create_coda_amplitude_dict(event_file='/home/schreinl/Stage/Data/eq_4_france
                 if station not in amp_dict:
                     amplitudes_dict[station].append(None)
         except FileNotFoundError:
-            print(f"File not found: {file_path}")
+            #print(f"File not found: {file_path}")
             for station in amplitudes_dict:
                 amplitudes_dict[station].append(None)
 
@@ -2430,7 +2430,7 @@ def site_effect_dict(eventfile, fmin,fmax,reference_stations,envelope_name='enve
                         if ref_median_ratio is not None:
                             ech_amp = ref_amp * ref_median_ratio 
                             reference_station = ref
-                            print(f'used reference station {reference_station}')
+                            #print(f'used reference station {reference_station}')
                         break 
         if ech_amp is None:
             continue
@@ -2491,7 +2491,7 @@ def site_effect_overall(fmin,fmax, reference_stations, frequenciesmin=None, freq
             ratios = np.array([event['ratio'] for event in events])
             
             Z = (ratios - np.mean(ratios)) / np.std(ratios)
-            outlier_indices = np.where(Z > 1.5)[0]
+            outlier_indices = np.where(Z > 1.3)[0]
             
             ratios_filtered = np.delete(ratios, outlier_indices)
             
@@ -2519,14 +2519,16 @@ def site_effect_overall(fmin,fmax, reference_stations, frequenciesmin=None, freq
 
         for i in range(len(frequenciesmin)):    
             site_effect = site_effect_dict(eventfile,frequenciesmin[i],frequenciesmax[i], reference_stations,envelope_name=envelope_name)
-            
+
+        
+
 
             site_effect_median_std = {}
-            for station, ratios in site_effect.items():
-                ratios = np.array(ratios)
-                # 
+            for station, events in site_effect.items():
+                #print(f'station: {station}, ratios: {ratios}')
+                ratios = np.array([event['ratio'] for event in events])
                 Z = (ratios - np.mean(ratios)) / np.std(ratios)
-                outlier_indices = np.where(Z > 1.5)[0]
+                outlier_indices = np.where(Z > 1.3)[0]
 
                 ratios_filtered = np.delete(ratios, outlier_indices)
 
@@ -2545,7 +2547,10 @@ def site_effect_overall(fmin,fmax, reference_stations, frequenciesmin=None, freq
                 }
 
             site_effect_medians[f"{frequenciesmin[i]}-{frequenciesmax[i]}Hz"] = site_effect_median_std
-
+            
+            if map_plot:
+                map_result = map_site_effect(fmin, fmax, site_effect_medians)
+                return site_effect_medians, map_result
         
 
 
@@ -2638,7 +2643,7 @@ def map_site_effect(fmin,fmax,site_effect_medians,method='multiple'):
     for event_dir in os.listdir(data_directory):
         event_path = os.path.join(data_directory, event_dir)
         if os.path.isdir(event_path):
-            file_pattern = os.path.join(event_path, f'*{fmin}_{fmax}Hz_unfiltered_stations_SNR.txt')
+            file_pattern = os.path.join(event_path, f'*_thresh_stations_with_amps.txt')
             #file_pattern = os.path.join(event_path, f'*_new_cutoff_fac_1.1_{fmin}_{fmax}Hz_dict.txt')
             matching_files = glob.glob(file_pattern)
             
@@ -2667,7 +2672,7 @@ def map_site_effect(fmin,fmax,site_effect_medians,method='multiple'):
     log_values = np.logspace(np.log10(0.1), np.log10(10), num=100)
     color_list = [get_color_logstep(value) for value in log_values]
 
-    step_values = np.logspace(np.log10(0.1), np.log10(10), num=5)  
+    step_values = np.logspace(np.log10(0.1), np.log10(10), num=120)  
     step_colors = [get_color_logstep(value) for value in step_values]
 
     colormap = StepColormap(
@@ -2683,17 +2688,24 @@ def map_site_effect(fmin,fmax,site_effect_medians,method='multiple'):
     for (lat, lon), (network, name) in plotted_stations.items():
         if method == 'single':
             station_medians = site_effect_medians
+            
         elif method == 'multiple':
             station_medians = site_effect_medians.get(f'{fmin}-{fmax}Hz', {}).get(name, {})
         median_before = station_medians.get('median_after', None)
+        std = station_medians.get('std_after', None)
+        numpoints = station_medians.get('num_points_after', None)
 
+        if numpoints is not None and numpoints <= 2:
+            coloroutside = 'red'
+        elif numpoints is not None and numpoints > 2:
+            coloroutside = 'green'
         if median_before is not None:
             color = get_color(median_before)
             folium.CircleMarker(
                 location=[lat, lon],
                 radius=6,
-                tooltip=f"{network}.{name} ({lat}, {lon}), Median: {median_before}",
-                color="black",
+                tooltip=f"{network}.{name} ({lat}, {lon}), Median: {median_before}, std: {std}, Points: {numpoints}",
+                color=coloroutside,
                 weight=1,
                 fill=True,
                 fill_color=color,
