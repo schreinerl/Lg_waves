@@ -2713,3 +2713,6 @@ def map_site_effect(fmin,fmax,site_effect_medians,method='multiple'):
             ).add_to(event_map)
 
     return event_map
+
+
+
