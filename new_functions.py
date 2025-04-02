@@ -2612,7 +2612,106 @@ def color_scale(min_value, max_value, num_steps=100):
 
 
 
-def map_site_effect(fmin,fmax,site_effect_medians,method='multiple'):
+
+
+
+import glob
+from branca.colormap import StepColormap
+
+def map_site_effect(fmin, fmax, site_effect_medians, method='multiple'):
+    event_map = folium.Map(location=[46.2145, -0.7295], zoom_start=5)
+    data_directory = '/home/schreinl/Stage/Data1/'
+    metadata_directory = os.path.join(data_directory, "Metadata/")
+    event_locations = []
+    
+    for metadata_file in os.listdir(metadata_directory):
+        metadata_path = os.path.join(metadata_directory, metadata_file)
+        if os.path.isfile(metadata_path):
+            try:
+                with open(metadata_path, 'r') as file:
+                    lines = file.readlines()
+                    lat, lon = None, None
+                    
+                    for line in lines:
+                        if line.startswith("Latitude:"):
+                            lat = float(line.split(":")[1].strip())
+                        elif line.startswith("Longitude:"):
+                            lon = float(line.split(":")[1].strip())
+                    
+                    if lat is not None and lon is not None:
+                        event_locations.append((lat, lon))
+            except Exception as e:
+                print(f"Error reading {metadata_path}: {e}")
+    
+    plotted_stations = {}
+    
+    for event_dir in os.listdir(data_directory):
+        event_path = os.path.join(data_directory, event_dir)
+        if os.path.isdir(event_path):
+            file_pattern = os.path.join(event_path, f'*_thresh_stations_with_amps.txt')
+            matching_files = glob.glob(file_pattern)
+            
+            for file_path in matching_files:
+                try:
+                    with open(file_path, 'r') as file:
+                        data = json.load(file)
+                        
+                        for station in data:
+                            if len(station) >= 4:
+                                network = station[0]
+                                name = station[1]
+                                lat = float(station[2])
+                                lon = float(station[3])
+                                station_id = (lat, lon)
+                                
+                                plotted_stations[station_id] = (network, name)
+                except Exception as e:
+                    print(f"Error processing {file_path}: {e}")
+    
+    print('done reading in')
+    
+    log_values = np.logspace(np.log10(0.1), np.log10(10), num=100)
+    step_values = np.logspace(np.log10(0.1), np.log10(10), num=120)  
+    step_colors = [get_color_logstep(value) for value in step_values]
+    
+    colormap = StepColormap(
+        step_colors, 
+        vmin=0.1, 
+        vmax=10, 
+        index=step_values
+    )
+    colormap.add_to(event_map)
+    colormap.caption = f"Median Site Effect ({fmin}-{fmax}Hz)"
+    
+    for (lat, lon), (network, name) in plotted_stations.items():
+        if method == 'single':
+            station_medians = site_effect_medians
+        elif method == 'multiple':
+            station_medians = site_effect_medians.get(f'{fmin}-{fmax}Hz', {}).get(name, {})
+        
+        median_before = station_medians.get('median_after', None)
+        std = station_medians.get('std_after', None)
+        numpoints = station_medians.get('num_points_after', None)
+        
+        if numpoints is not None and not (np.isnan(numpoints) or numpoints == 0):
+            coloroutside = 'red' if numpoints <= 2 else 'green'
+            if median_before is not None:
+                color = get_color(median_before)
+                folium.CircleMarker(
+                    location=[lat, lon],
+                    radius=6,
+                    tooltip=f"{network}.{name} ({lat}, {lon}), Median: {median_before}, std: {std}, Points: {numpoints}",
+                    color=coloroutside,
+                    weight=1,
+                    fill=True,
+                    fill_color=color,
+                    fill_opacity=1
+                ).add_to(event_map)
+    
+    return event_map
+
+
+def map_site_effect_old(fmin,fmax,site_effect_medians,method='multiple'):
     import glob
     event_map = folium.Map(location=[46.2145, -0.7295], zoom_start=5)
     data_directory = '/home/schreinl/Stage/Data1/'
