@@ -2459,6 +2459,74 @@ def site_effect_dict(eventfile, fmin,fmax,reference_stations,envelope_name='enve
 
     return site_effect
 
+
+
+def site_effect_dict_old(eventfile, fmin, fmax, reference_stations, envelope_name='envelope_amps'):
+    site_effect = {}
+
+    eq_list = pd.read_csv(eventfile)
+    amplitudes_dict = create_coda_amplitude_dict(event_file=eventfile, codawindow="cutoff",
+                                                  fmin=fmin, fmax=fmax, factor=1.1, data_dir='Data1',
+                                                  envelope_name=envelope_name)
+    
+    ref_median_dict = reference_stations_median(reference_stations, eventfile, fmin, fmax)
+    num_events = len(next(iter(amplitudes_dict.values())))
+
+    for event in range(num_events):
+        event_lat = eq_list["latitude"][event]
+        event_lon = eq_list["longitude"][event]
+        ech_amp = None
+        reference_station = None
+
+        if "ECH" in amplitudes_dict and event < len(amplitudes_dict["ECH"]):
+            ech_entry = amplitudes_dict["ECH"][event]
+            if ech_entry and ech_entry.get("snr_coda", 0) > 2:
+                ech_amp = ech_entry["amplitude"]
+                reference_station = "ECH"
+
+        if ech_amp is None:
+            closest_distance = np.inf
+            for ref in reference_stations:
+                if ref in amplitudes_dict and event < len(amplitudes_dict[ref]):
+                    ref_entry = amplitudes_dict[ref][event]
+                    if ref_entry and ref_entry.get("snr_coda", 0) > 2:
+                        ref_lat = ref_entry["latitude"]
+                        ref_lon = ref_entry["longitude"]
+                        dist = haversine(event_lat, event_lon, ref_lat, ref_lon)
+                        if dist < closest_distance:
+                            ref_amp = ref_entry["amplitude"]
+                            ref_median_ratio = ref_median_dict.get(ref, None)
+                            if ref_median_ratio is not None:
+                                ech_amp = ref_amp * ref_median_ratio
+                                reference_station = ref
+                                closest_distance = dist
+
+        if ech_amp is None:
+            continue 
+        for station in amplitudes_dict:
+            if event < len(amplitudes_dict[station]):
+                station_entry = amplitudes_dict[station][event]
+                if station_entry and station_entry.get("snr_coda", 0) > 2:
+                    station_amp = station_entry["amplitude"]
+                    ratio = station_amp / ech_amp
+                    magnitude = station_entry["magnitude"]
+                    latitude = station_entry["latitude"]
+                    longitude = station_entry["longitude"]
+
+                    if station not in site_effect:
+                        site_effect[station] = []
+                    if ratio <= 100:
+                        site_effect[station].append({
+                            "ratio": ratio,
+                            "time": station_entry["time"],
+                            "reference_station": reference_station,
+                            "magnitude": magnitude,
+                            "latitude": latitude,
+                            "longitude": longitude
+                        })
+
+    return site_effect
+
 def site_effect_overall(fmin,fmax, reference_stations, frequenciesmin=None, frequenciesmax=None, method='single', eventfile='/home/schreinl/Stage/Data/big_box_4.5.csv',map_plot=False,envelope_name='envelope_amps'):
     '''
     Before the calling of this function all the data has to be downloaded, the SNR has to be calculated, 
@@ -2814,4 +2882,391 @@ def map_site_effect_old(fmin,fmax,site_effect_medians,method='multiple'):
     return event_map
 
 
+
+
+
+def haversine(lat1, lon1, lat2, lon2):
+    R = 6371.0  
+    lat1, lon1, lat2, lon2 = map(np.radians, [lat1, lon1, lat2, lon2])
+    dlat = lat2 - lat1 
+    dlon = lon2 - lon1 
+    a = np.sin(dlat/2.0)**2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon/2.0)**2
+    return R * 2 * np.arcsin(np.sqrt(a))
+
+
+
+
+
+
+
+# in the following are all the functions that are needed for the calulation of Q0 and Sk:
+
+
+
+def Lg_amplitude_dict(base_directory, fmin, fmax):
+    '''
+    Input:
+    - base_directory: str, the directory where the files are stored, mostly "/home/schreinl/Stage/Data1"
+    - fmin: list of float, the minimum frequency
+    - fmax: list of float, the maximum frequency
+
+    This function reads in the Lg amplitude from all available events, and stores in a dict, where for all events the amplitude
+    of all station is stored, if existent, for all the frequency ranges.
+    
+    Can be combined with: output_path = "..."
+    with open(output_path, "w") as f:
+        json.dump(Lg_dict, f, indent=4), in order to store the output file.
+
+
+    '''
+    events_data = {}
+    
+    for timestamp_dir in sorted(os.listdir(base_directory)):
+        dir_path = os.path.join(base_directory, timestamp_dir)
+        
+        if os.path.isdir(dir_path):
+            event_stations = {}
+            
+            for f1, f2 in zip(fmin, fmax):
+                frequency_range = f"{f1}_{f2}Hz" 
+                filename = f"{timestamp_dir}_{frequency_range}_5_thresh_stations_with_amps.txt"
+                file_path = os.path.join(dir_path, filename)
+                
+                if os.path.exists(file_path):
+                    try:
+                        with open(file_path, "r") as f:
+                            data = json.load(f)
+                        
+                        if isinstance(data, list):
+                            for entry in data:
+                                if isinstance(entry, list) and len(entry) > 12:
+                                    network = entry[0]
+                                    station_name = entry[1]
+                                    amplitude = float(entry[12])
+                                    station_key = f"{network}.{station_name}"
+                                    
+                                    if station_key not in event_stations:
+                                        event_stations[station_key] = {}
+                                    
+                                    event_stations[station_key][frequency_range] = amplitude
+                        else:
+                            print(f"Unexpected data format in file: {file_path}")
+                    except Exception as e:
+                        print(f"Error reading file {file_path}: {e}")
+            
+            if event_stations:
+                events_data[timestamp_dir] = event_stations
+    
+    return events_data
+
+
+
+def Lg_amplitude_calculation(fmin, fmax, Lg_dict, savefile=False,special_site_terms=None):
+    '''
+    Input: 
+        - fmin: float, the minimum frequency
+        - fmax: float, the maximum frequency
+        - Lg_dict: dict, the dictionary with the Lg amplitude for all events and stations, obtained by calling Lg_amplitude_dict
+        - savefile: bool, if True, the output will be saved in a file
+        - special_site_terms: dict, if None, the site terms will be read in from the file "../Data1/Site_effects_dict.txt"
+
+    Output:
+        - results: dict, with A_kl (the amplitude of each station and event) as well as the distance to the event
+        - results_with_coords: dict, with the coordinates of the event and the stations, and their amplitude (A_kl)
+
+    Method:
+        - for each event:
+        - reads in all available site terms for the given frequency range
+        - calculates the A_kl for each station, using the formula:
+           A_kl = ln(A_kl) + (5/6)*ln(r) - ln(site_term)
+    '''
+    
+    if special_site_terms:
+        site_terms = special_site_terms
+    else:   
+        with open("../Data1/Site_effects_dict.txt", "r") as f:
+            site_terms = json.load(f)
+
+    station_coords = {}
+    with open("../Data1/all_stations_coordinates.txt", "r") as f:
+        next(f)
+        for line in f:
+            if line.strip():
+                network, station, lat, lon = line.strip().split(",")
+                station_coords[f"{network}.{station}"] = (float(lat), float(lon))
+
+    event_data = {}
+    with open("../Data/big_box_4.5.csv", "r") as f:
+        reader = csv.reader(f)
+        next(reader)
+        for row in reader:
+            event_time = UTCDateTime(row[0])
+            event_lat = float(row[1])
+            event_lon = float(row[2])
+            
+            event_time_str = event_time.strftime("%Y_%m_%dT%H_%M_%S")
+            event_data[event_time_str] = (event_lat, event_lon)
+
+    results = {}
+    Q0_calculation_terms = {}
+
+    for event_time, stations in Lg_dict.items():
+        if event_time in ["Dicts", "Metadata"]: 
+            continue
+        
+        formatted_event_time = (UTCDateTime(event_time) + 25).strftime("%Y_%m_%dT%H_%M_%S")
+        if formatted_event_time not in event_data:
+            continue
+        
+        event_lat, event_lon = event_data[formatted_event_time]
+        event_results = {}
+        tmp = {}
+        for station, freq_data in stations.items():
+            if station not in station_coords:
+                continue
+            
+            lat, lon = station_coords[station]
+            r = haversine(event_lat, event_lon, lat, lon)
+
+            for freq_range, amplitude in freq_data.items():
+                freq_min, freq_max = map(float, freq_range.replace("Hz", "").split("_"))
+                if not (fmin <= freq_min and fmax >= freq_max):
+                    continue
+
+                site_effect = None
+                for site_freq_band, site_info in site_terms.items():
+                    site_freq_min, site_freq_max = map(lambda x: float(x.replace('Hz', '').strip()), site_freq_band.split('-'))
+                    if freq_min <= site_freq_min <= freq_max and freq_max >= site_freq_max >= freq_min:
+                        if station.split(".")[1] in site_info:
+                            site_effect = site_info[station.split(".")[1]].get("median_after", None)
+                            break
+                
+                if site_effect is None or site_effect <= 0:
+                    continue 
+
+                log_value = np.log(amplitude) + (5/6)*np.log(r) - np.log(site_effect)
+                event_results[station] = {"log_value": log_value, "distance_km": r}
+                tmp[station] = {'amplitude': amplitude, 'distance': r, 'site_effect': site_effect}
+        
+        results[formatted_event_time] = event_results
+        Q0_calculation_terms[formatted_event_time] = tmp
+
+    results_with_coords = {}
+    for event_time, event_results in results.items():
+        event_lat, event_lon = event_data[event_time]
+        results_with_coords[event_time] = {
+            "coordinates": {"latitude": event_lat, "longitude": event_lon},
+            "data": event_results
+        }
+    if savefile:
+        with open("../Data1/processed_event_amplitudes.txt", "w") as f:
+            json.dump(results, f, indent=4)
+        with open("../Data1/processed_event_amplitudes_coords.txt", "w") as g:
+            json.dump(results_with_coords, g, indent=4)
+
+    print("Processing complete.")
+    return results, results_with_coords
+
+
+def Lg_Q0_Sk(fmin, fmax, plot_Q0=False, plot_Sk=False, plot_Q0_map=False, plot_Sk_map=False,special_site_terms=None,std_thresh=None):
+    '''
+    Input:
+        - fmin: float, the minimum frequency
+        - fmax: float, the maximum frequency
+        - plot options: bool, if True, the plot will be shown
+        - special_site_terms: dict, if you want to use a special site term, you can pass it here.
+             In case the site term wants to be altered instead of read from disk.
+        - std_thresh: float, if you want to set a threshold for the standard deviation of Q0, you can pass it here.
+
+    Output:
+        - dict with the Q0 and Sk values for all events for a single frequency range
+
+    Method:
+        - calculates, using Lg_amplitude_dict all the amplitudes of all stations for all events and frequency ranges
+        - then for each event, the points of all available stations are 'plotted' against the distance
+        - a linear regression is calculated, and the Q factor is calculated using the slope of the regression line, and Sk is calculated using the intercept
+        - the error on Q0 and Sk is calculated using the standard error of the slope and intercept
+        - if the option std_thresh is not None, events with a std higher than given threshold are not used in the above calculation
+        - the results are stored in a dict, where the keys are the event times and the values are dicts with Q0, Sk and their errors
+    
+    '''
+
+
+
+
+
+    base_directory = "/home/schreinl/Stage/Data1" 
+    
+    fminlist = [0.5,2,4,6]
+    fmaxlist = [1.5,3,6,8]
+    Lg_dict = Lg_amplitude_dict(base_directory,fminlist,fmaxlist)
+    results, results_with_coords = Lg_amplitude_calculation(fmin, fmax, Lg_dict, savefile=False,special_site_terms=special_site_terms)
+
+    event_data_dict = {}
+
+    for event_time, event_data in results.items():
+        log_amplitudes = [station_data["log_value"] for station_data in event_data.values()]
+        distances = [station_data["distance_km"] for station_data in event_data.values()]
+
+        filtered_distances = [d for d in distances if d > 200]
+        filtered_log_amplitudes = [log_amplitudes[i] for i in range(len(distances)) if distances[i] > 200]
+    
+
+
+        if len(filtered_distances) > 1:
+            slope, intercept, r_value, p_value, std_err_slope = linregress(filtered_distances, filtered_log_amplitudes)
+
+
+            #propagate the errors, maybe for further use, the error 
+            f_avg = (fmin + fmax) / 2
+            Q0 = - (np.pi * f_avg) / (3.2 * slope)
+            Q0_error = np.abs((np.pi * f_avg) / (3.2 * slope**2)) * std_err_slope
+
+
+            std_err_intercept = std_err_slope * np.sqrt(np.mean(np.square(filtered_distances))) 
+            Sk = np.exp(intercept)
+            Sk_error = Sk * std_err_intercept
+        
+            if std_thresh is not None:
+                if Q0_error > std_thresh:
+                    continue
+                else:
+                    if event_time in results_with_coords:
+                        coordinates = results_with_coords[event_time]["coordinates"]
+                        event_data_dict[event_time] = {
+                            "Q0": Q0,
+                            "Q0_error": Q0_error,
+                            "Sk": Sk,
+                            "Sk_error": Sk_error,
+                            "coordinates": coordinates
+                        }
+            else:
+                if event_time in results_with_coords:
+                        coordinates = results_with_coords[event_time]["coordinates"]
+                        event_data_dict[event_time] = {
+                            "Q0": Q0,
+                            "Q0_error": Q0_error,
+                            "Sk": Sk,
+                            "Sk_error": Sk_error,
+                            "coordinates": coordinates
+                        }
+
+
+
+
+        
+
+    print(f"Processed {len(event_data_dict)} events with Q0 and Sk values.")
+
+    if plot_Q0 and event_data_dict:
+        Q0_values = [data["Q0"] for data in event_data_dict.values()]
+        Q0_errors = [data["Q0_error"] for data in event_data_dict.values()]
+        plt.figure(figsize=(12, 6))
+        plt.errorbar(range(len(Q0_values)), Q0_values, yerr=Q0_errors, fmt='o', color='green', ecolor='lightgray', elinewidth=2, capsize=3)
+        plt.xlabel('Event Index')
+        plt.ylim([0, 1000])
+        plt.ylabel('Q Factor')
+        plt.title('Q Factor for Each Event with Error Bars')
+        plt.xticks(range(0, len(Q0_values), max(1, len(Q0_values)//20)), rotation=90)
+        plt.tight_layout()
+        plt.show()
+
+    if plot_Sk and event_data_dict:
+        Sk_values = [data["Sk"] for data in event_data_dict.values()]
+        plt.figure(figsize=(12, 6))
+        plt.scatter(range(len(Sk_values)), Sk_values, marker='o', color='blue')
+        plt.xlabel('Event Index')
+        plt.ylabel('Sk')
+        plt.title('Source term for Each Event')
+        plt.xticks(range(0, len(Sk_values), max(1, len(Sk_values)//20)), rotation=90)
+        plt.tight_layout()
+        plt.show()
+
+    if plot_Q0_map and event_data_dict:
+        latitudes = [event_data['coordinates']["latitude"] for event_data in event_data_dict.values()]
+        longitudes = [event_data['coordinates']["longitude"] for event_data in event_data_dict.values()]
+        Q_values = [event_data["Q0"] for event_data in event_data_dict.values()]
+
+        unique_Q_values = sorted(set(Q for Q in Q_values if not np.isnan(Q)))
+        print(f'lower boundary {np.percentile(unique_Q_values,5)} and upper boundary {np.percentile(unique_Q_values,95)}')
+        colormap = cm.LinearColormap(
+            colors=["blue", "green", "yellow", "orange", "red"], 
+            vmin=np.percentile(unique_Q_values,5), 
+            vmax=np.percentile(unique_Q_values,95)
+        )
+        colormap.caption = "Q Factor"
+
+        event_map = folium.Map(location=[np.mean(latitudes), np.mean(longitudes)], zoom_start=5, tiles="OpenStreetMap")
+
+        counter = 0
+        for event_time, event_data in event_data_dict.items():
+            Q = event_data["Q0"]
+            lat = event_data['coordinates']["latitude"]
+            lon = event_data['coordinates']["longitude"]
+            
+            if not np.isnan(Q):
+                counter += 1
+                popup_text = f"Event: {event_time}<br>Q: {Q:.2f}"
+                folium.CircleMarker(
+                    location=[lat, lon],
+                    radius=8,
+                    tooltip=popup_text,
+                    color=colormap(Q),  # Use colormap with sorted values
+                    weight=1,
+                    fill=True,
+                    fill_color=colormap(Q),
+                    fill_opacity=0.9
+                ).add_to(event_map)
+
+        colormap.add_to(event_map)
+        print(f'{counter} events on map')
+        event_map
+        return event_data_dict, event_map
+        
+
+    if plot_Sk_map and event_data_dict:
+        latitudes = [event_data['coordinates']["latitude"] for event_data in event_data_dict.values()]
+        longitudes = [event_data['coordinates']["longitude"] for event_data in event_data_dict.values()]
+        Sk_values = [event_data["Sk"] for event_data in event_data_dict.values()]
+
+        unique_Sk_values = sorted(set(Sk for Sk in Sk_values if np.isfinite(Sk)))
+        print(unique_Sk_values)
+        print(f'lower boundary {np.percentile(unique_Sk_values,5)} and upper boundary {np.percentile(unique_Sk_values,95)}')
+        colormap = cm.LinearColormap(
+            colors=["blue", "green", "yellow", "orange", "red"], 
+            vmin=np.percentile(unique_Sk_values,5), 
+            vmax=np.percentile(unique_Sk_values,95)
+        )
+        colormap.caption = "Source Term"
+
+        event_map = folium.Map(location=[np.mean(latitudes), np.mean(longitudes)], zoom_start=5, tiles="OpenStreetMap")
+
+        counter = 0
+        for event_time, event_data in event_data_dict.items():
+            Sk = event_data["Sk"]
+            lat = event_data['coordinates']["latitude"]
+            lon = event_data['coordinates']["longitude"]
+            
+            if not np.isnan(Sk):
+                counter += 1
+                popup_text = f"Event: {event_time}<br>Q: {Sk:.2f}"
+                folium.CircleMarker(
+                    location=[lat, lon],
+                    radius=8,
+                    tooltip=popup_text,
+                    color=colormap(Sk),
+                    weight=1,
+                    fill=True,
+                    fill_color=colormap(Sk),
+                    fill_opacity=0.9
+                ).add_to(event_map)
+
+        colormap.add_to(event_map)
+        print(f'{counter} events on map')
+        event_map
+        return event_data_dict, event_map
+
+
+
+    return event_data_dict
 
