@@ -3068,7 +3068,7 @@ def Lg_amplitude_calculation(fmin, fmax, Lg_dict, savefile=False,special_site_te
     return results, results_with_coords
 
 
-def Lg_Q0_Sk(fmin, fmax, plot_Q0=False, plot_Sk=False, plot_Q0_map=False, plot_Sk_map=False,special_site_terms=None,std_thresh=None):
+def Lg_Q0_Sk_old(fmin, fmax, plot_Q0=False, plot_Sk=False, plot_Q0_map=False, plot_Sk_map=False,special_site_terms=None,std_thresh=None):
     '''
     Input:
         - fmin: float, the minimum frequency
@@ -3269,4 +3269,253 @@ def Lg_Q0_Sk(fmin, fmax, plot_Q0=False, plot_Sk=False, plot_Q0_map=False, plot_S
 
 
     return event_data_dict
+
+
+
+def Lg_Q0_Sk(fmin, fmax, V_Lg=3.2,plot_Q0=False, plot_Sk=False, plot_Q0_map=False, plot_Sk_map=False,special_site_terms=None,std_thresh=None,give_out_results=False):
+    '''
+    Input:
+        - fmin: float, the minimum frequency
+        - fmax: float, the maximum frequency
+        - plot options: bool, if True, the plot will be shown
+        - special_site_terms: dict, if you want to use a special site term, you can pass it here.
+             In case the site term wants to be altered instead of read from disk.
+        - std_thresh: float, if you want to set a threshold for the standard deviation of Q0, you can pass it here.
+        - give_out_results: bool, if True, the function will return the results of each individual event
+
+    Output:
+        - dict with the Q0 and Sk values for all events for a single frequency range
+
+    Method:
+        - calculates, using Lg_amplitude_dict all the amplitudes of all stations for all events and frequency ranges
+        - then for each event, the points of all available stations are 'plotted' against the distance
+        - a linear regression is calculated, and the Q factor is calculated using the slope of the regression line, and Sk is calculated using the intercept
+        - the error on Q0 and Sk is calculated using the standard error of the slope and intercept
+        - if the option std_thresh is not None, events with a std higher than given threshold are not used in the above calculation
+        - the results are stored in a dict, where the keys are the event times and the values are dicts with Q0, Sk and their errors
+    '''
+
+
+
+
+
+    base_directory = "/home/schreinl/Stage/Data1" 
+    
+    fminlist = [0.5,2,4,6]
+    fmaxlist = [1.5,3,6,8]
+    Lg_dict = Lg_amplitude_dict(base_directory,fminlist,fmaxlist)
+    results, results_with_coords = Lg_amplitude_calculation(fmin, fmax, Lg_dict, savefile=False,special_site_terms=special_site_terms)
+
+    event_data_dict = {}
+    eventcounter = 0
+    drop1counter = 0
+    drop2counter = 0
+    for event_time, event_data in results.items():
+        eventcounter += 1
+        log_amplitudes = [station_data["log_value"] for station_data in event_data.values()]
+        distances = [station_data["distance_km"] for station_data in event_data.values()]
+
+        filtered_distances = []
+        filtered_log_amplitudes = []
+
+        for d, a in zip(distances, log_amplitudes):
+            if d > 200 and np.isfinite(d) and np.isfinite(a):
+                filtered_distances.append(d)
+                filtered_log_amplitudes.append(a)
+
+        filtered_distances = np.array(filtered_distances)
+        filtered_log_amplitudes = np.array(filtered_log_amplitudes)
+        #take off outliers with IQR and z score 
+        filtered_pairs = [(d, a) for d, a in zip(filtered_distances, filtered_log_amplitudes)]
+        if filtered_pairs:
+            filtered_distances, filtered_log_amplitudes = zip(*filtered_pairs)
+            filtered_distances, filtered_log_amplitudes = remove_outliers_iqr(filtered_distances, filtered_log_amplitudes)
+        else:
+            filtered_distances, filtered_log_amplitudes = [], []
+        if len(filtered_distances) <= 1:
+            drop1counter += 1
+            continue
+        
+        slope, intercept, r_value, p_value, std_err_slope = linregress(filtered_distances, filtered_log_amplitudes)
+        if np.isnan(slope) or np.isnan(intercept):
+            print(f'{event_time} is not able to produce Q')
+    #else:
+        #drop1counter += 1
+        #print(f'{event_time} not enough data points')
+
+        #propagate the errors, maybe for further use
+        f_avg = (fmin + fmax) / 2
+        Q0 = - (np.pi * f_avg) / (3.2 * slope)
+        Q0_error = np.abs((np.pi * f_avg) / (V_Lg * slope**2)) * std_err_slope
+
+
+        std_err_intercept = std_err_slope * np.sqrt(np.mean(np.square(filtered_distances))) 
+        Sk = np.exp(intercept)
+        Sk_error = Sk * std_err_intercept
+
+        if std_thresh is not None:
+            if Q0_error > std_thresh:
+                drop2counter += 1
+                #print(f'{event_time} skipped: Q0 error {Q0_error:.2f} exceeds threshold {std_thresh}')
+                continue
+            else:
+                if event_time in results_with_coords:
+                    coordinates = results_with_coords[event_time]["coordinates"]
+                    event_data_dict[event_time] = {
+                        "Q0": Q0,
+                        "Q0_error": Q0_error,
+                        "Sk": Sk,
+                        "Sk_error": Sk_error,
+                        "coordinates": coordinates
+                    }
+        else:
+            if event_time in results_with_coords:
+                    coordinates = results_with_coords[event_time]["coordinates"]
+                    event_data_dict[event_time] = {
+                        "Q0": Q0,
+                        "Q0_error": Q0_error,
+                        "Sk": Sk,
+                        "Sk_error": Sk_error,
+                        "coordinates": coordinates
+                    }
+
+
+
+
+        
+    print(f'{eventcounter} events in total')
+    print(f'{drop2counter} events dropped due to insufficient std on Q0')
+    print(f'{drop1counter} events dropped due to insufficient data points')
+    print(f"Processed {len(event_data_dict)} events with Q0 and Sk values.")
+
+    if plot_Q0 and event_data_dict:
+        Q0_values = [data["Q0"] for data in event_data_dict.values()]
+        Q0_errors = [data["Q0_error"] for data in event_data_dict.values()]
+        plt.figure(figsize=(12, 6))
+        plt.errorbar(range(len(Q0_values)), Q0_values, yerr=Q0_errors, fmt='o', color='green', ecolor='lightgray', elinewidth=2, capsize=3)
+        plt.xlabel('Event Index')
+        plt.ylim([0, 1000])
+        plt.ylabel('Q Factor')
+        plt.title(f'Q Factor for Each Event with Error Bars for {fmin}-{fmax}Hz')
+        plt.xticks(range(0, len(Q0_values), max(1, len(Q0_values)//20)), rotation=90)
+        plt.tight_layout()
+        plt.show()
+
+    if plot_Sk and event_data_dict:
+        Sk_values = [data["Sk"] for data in event_data_dict.values()]
+        plt.figure(figsize=(12, 6))
+        plt.scatter(range(len(Sk_values)), Sk_values, marker='o', color='blue')
+        plt.xlabel('Event Index')
+        plt.ylabel('Sk')
+        plt.title('Source term for Each Event')
+        plt.xticks(range(0, len(Sk_values), max(1, len(Sk_values)//20)), rotation=90)
+        plt.tight_layout()
+        plt.show()
+
+    if plot_Q0_map and event_data_dict:
+        latitudes = [event_data['coordinates']["latitude"] for event_data in event_data_dict.values()]
+        longitudes = [event_data['coordinates']["longitude"] for event_data in event_data_dict.values()]
+        Q_values = [event_data["Q0"] for event_data in event_data_dict.values()]
+
+        unique_Q_values = sorted(set(Q for Q in Q_values if not np.isnan(Q)))
+        print(f'lower boundary {np.percentile(unique_Q_values,5)} and upper boundary {np.percentile(unique_Q_values,95)}')
+        colormap = cm.LinearColormap(
+            colors=["blue", "green", "yellow", "orange", "red"], 
+            vmin=np.percentile(unique_Q_values,5), 
+            vmax=np.percentile(unique_Q_values,95)
+        )
+        colormap.caption = "Q Factor"
+
+        event_map = folium.Map(location=[np.mean(latitudes), np.mean(longitudes)], zoom_start=5, tiles="OpenStreetMap")
+
+        counter = 0
+        for event_time, event_data in event_data_dict.items():
+            Q = event_data["Q0"]
+            lat = event_data['coordinates']["latitude"]
+            lon = event_data['coordinates']["longitude"]
+            
+            if not np.isnan(Q):
+                counter += 1
+                popup_text = f"Event: {event_time}<br>Q: {Q:.2f}"
+                folium.CircleMarker(
+                    location=[lat, lon],
+                    radius=8,
+                    tooltip=popup_text,
+                    color=colormap(Q),  # Use colormap with sorted values
+                    weight=1,
+                    fill=True,
+                    fill_color=colormap(Q),
+                    fill_opacity=0.9
+                ).add_to(event_map)
+
+        colormap.add_to(event_map)
+        print(f'{counter} events on map')
+        event_map
+        return event_data_dict, event_map
+        
+
+    if plot_Sk_map and event_data_dict:
+        latitudes = [event_data['coordinates']["latitude"] for event_data in event_data_dict.values()]
+        longitudes = [event_data['coordinates']["longitude"] for event_data in event_data_dict.values()]
+        Sk_values = [event_data["Sk"] for event_data in event_data_dict.values()]
+
+        unique_Sk_values = sorted(set(Sk for Sk in Sk_values if np.isfinite(Sk)))
+        print(unique_Sk_values)
+        print(f'lower boundary {np.percentile(unique_Sk_values,5)} and upper boundary {np.percentile(unique_Sk_values,95)}')
+        colormap = cm.LinearColormap(
+            colors=["blue", "green", "yellow", "orange", "red"], 
+            vmin=np.percentile(unique_Sk_values,5), 
+            vmax=np.percentile(unique_Sk_values,95)
+        )
+        colormap.caption = "Source Term"
+
+        event_map = folium.Map(location=[np.mean(latitudes), np.mean(longitudes)], zoom_start=5, tiles="OpenStreetMap")
+
+        counter = 0
+        for event_time, event_data in event_data_dict.items():
+            Sk = event_data["Sk"]
+            lat = event_data['coordinates']["latitude"]
+            lon = event_data['coordinates']["longitude"]
+            
+            if not np.isnan(Sk):
+                counter += 1
+                popup_text = f"Event: {event_time}<br>Q: {Sk:.2f}"
+                folium.CircleMarker(
+                    location=[lat, lon],
+                    radius=8,
+                    tooltip=popup_text,
+                    color=colormap(Sk),
+                    weight=1,
+                    fill=True,
+                    fill_color=colormap(Sk),
+                    fill_opacity=0.9
+                ).add_to(event_map)
+
+        colormap.add_to(event_map)
+        print(f'{counter} events on map')
+        event_map
+        return event_data_dict, event_map
+
+
+    if give_out_results:
+        print("Returning event data dictionary.")
+        return event_data_dict, results
+    else:
+        return event_data_dict
+
+
+
+def remove_outliers_iqr(distances, log_amplitudes):
+    distances = np.array(distances)
+    log_amplitudes = np.array(log_amplitudes)
+    
+    Q1 = np.percentile(log_amplitudes, 25)
+    Q3 = np.percentile(log_amplitudes, 75)
+    IQR = Q3 - Q1
+    lower_bound = Q1 - 1.5 * IQR
+    upper_bound = Q3 + 1.5 * IQR
+    
+    mask = (log_amplitudes >= lower_bound) & (log_amplitudes <= upper_bound)
+    
+    return distances[mask], log_amplitudes[mask]
 
