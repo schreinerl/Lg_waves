@@ -3271,7 +3271,7 @@ def Lg_Q0_Sk_old(fmin, fmax, plot_Q0=False, plot_Sk=False, plot_Q0_map=False, pl
     return event_data_dict
 
 
-
+from scipy.stats import linregress
 def Lg_Q0_Sk(fmin, fmax, V_Lg=3.2,plot_Q0=False, plot_Sk=False, plot_Q0_map=False, plot_Sk_map=False,special_site_terms=None,std_thresh=None,give_out_results=False):
     '''
     Input:
@@ -3519,3 +3519,116 @@ def remove_outliers_iqr(distances, log_amplitudes):
     
     return distances[mask], log_amplitudes[mask]
 
+
+
+def extract_frequency_range(data_dict, target_freq):
+    result = {}
+    for event, stations in data_dict.items():
+        for station, freqs in stations.items():
+            if target_freq in freqs:
+                if event not in result:
+                    result[event] = {}
+                result[event][station] = freqs[target_freq]
+    return result
+
+
+
+import csv
+def Lg_Q_kl(fmin, fmax, savefile=False,std_thresh=100, envelope_name='new',
+            best_bet = ['MLS','GRA1','SSB','BFO','LOR','SENIN','HASLI','BOURR','BNALP','DAVOX','FUORN','MOA','CONA','CLUD','OBKA','MONC','CIMO','ECH'],
+            frequenciesmin=[0.5, 2, 4, 6], frequenciesmax=[1.5, 3, 6, 8]):
+
+
+    #with open("../Data1/Site_effects_dict.txt", "r") as f:
+    #    site_terms = json.load(f)
+    
+    
+    site_terms = site_effect_overall(fmin, fmax, best_bet, frequenciesmin=frequenciesmin, frequenciesmax=frequenciesmax, method='multiple', map_plot=False, envelope_name='new')
+
+
+
+    fmins = [0.5, 2, 4, 6]  
+    fmaxs = [1.5,3, 6, 8] 
+
+    base_directory = "/home/schreinl/Stage/Data1"
+    Lg_dicts = Lg_amplitude_dict(base_directory, fmins, fmaxs)
+    Lg_dict = extract_frequency_range(Lg_dicts, f"{fmin}_{fmax}Hz")
+
+    station_coords = {}
+    with open("../Data1/all_stations_coordinates.txt", "r") as f:
+        next(f)
+        for line in f:
+            if line.strip():
+                network, station, lat, lon = line.strip().split(",")
+                station_coords[f"{network}.{station}"] = (float(lat), float(lon))
+    
+    event_data = {}
+    with open("../Data/big_box_4.5.csv", "r") as f:
+        reader = csv.reader(f)
+        next(reader)
+        for row in reader:
+            event_time = UTCDateTime(row[0])
+            event_lat = float(row[1])
+            event_lon = float(row[2])
+            event_time_str = event_time.strftime("%Y_%m_%dT%H_%M_%S")
+            event_data[event_time_str] = (event_lat, event_lon)
+    
+
+    Q0_Sk_dict = Lg_Q0_Sk(fmin, fmax,std_thresh=std_thresh)
+    Qkl_dict = {}
+    v = 3.2
+    
+    for event_time, stations in Lg_dict.items():
+        if event_time in ["Dicts", "Metadata"]: 
+            continue
+        
+        formatted_event_time = (UTCDateTime(event_time) + 25).strftime("%Y_%m_%dT%H_%M_%S")
+        if formatted_event_time not in event_data:
+            continue
+        
+        event_lat, event_lon = event_data[formatted_event_time]
+        Qkl_dict[formatted_event_time] = {
+            "coordinates": {"latitude": event_lat, "longitude": event_lon},
+            "stations": {}
+        }
+        
+        for station, amplitude in stations.items():
+            if station not in station_coords:
+                continue
+            
+            lat, lon = station_coords[station]
+            r = haversine(event_lat, event_lon, lat, lon)
+            
+            site_effect = None
+            for freq_band, site_info in site_terms.items():
+                freq_min, freq_max = map(lambda x: float(x.replace('Hz', '').strip()), freq_band.split('-'))
+                if fmin <= freq_min <= fmax and fmax >= freq_max >= fmin:
+                    if station.split(".")[1] in site_info:
+                        site_effect = site_info[station.split(".")[1]].get("median_after", None)
+                        break
+            
+            if site_effect is None or site_effect <= 0 or r == 0:
+                Qkl = None
+            else:
+                f = (fmin + fmax) / 2 
+
+                if formatted_event_time in Q0_Sk_dict:
+                    source_term = Q0_Sk_dict[formatted_event_time]['Sk']            
+                    Qkl = (-(np.pi * r * f) / v) * (-np.log(site_effect) - np.log(source_term) + np.log(amplitude * r**0.83))**-1
+                    observable = r / Qkl
+                else:
+                    #print(f"Warning: Event time {formatted_event_time} not found in Q0_Sk_dict.")
+                    Qkl = None
+                    observable = None
+            
+            Qkl_dict[formatted_event_time]["stations"][station] = {
+                "Qkl": Qkl,
+                "observable": observable,
+                "coordinates": {"latitude": lat, "longitude": lon}
+            }
+    
+    if savefile:
+        with open(f"../Data1/Qkl_results_{fmin}_{fmax}Hz.json", "w") as f:
+            json.dump(Qkl_dict, f, indent=4)
+    
+    return Qkl_dict

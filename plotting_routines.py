@@ -6,6 +6,12 @@ from processing_routines import *
 
 
 
+###########################
+#Section 1.)
+#Plotting functions for visualisation of seismic data
+
+
+
 def plot_record_section(
     st, stations, eq_lat, eq_lon, eq_start, size=(1200, 1000), show=True, outfile=None, tracehodo=True, v_Lg_min=3.1, v_Lg_max=3.5, 
 v_Pg=6.,tmincoda=300,tmaxcoda=320):
@@ -97,71 +103,6 @@ v_Pg=6.,tmincoda=300,tmaxcoda=320):
 
 
 
-from scipy import stats
-def SNR_distance(stations, st, Dtmin_Pn, Dtmax_Pn, Dtmin_Sn, Dtmax_Sn, vLg_min, vLg_max, vPg_min, vPg_max, tmin_Coda, tmax_Coda,
-                 Dtmin_Noise, Dtmax_Noise,eq_start, dB= True):
-    phases = ['Lg', 'Pn', 'Sn', 'Pg']
-    phase_distance = {}
-    
-    fig, axs = plt.subplots(2, 2, figsize=(15, 15))
-    plt.style.use('seaborn-v0_8')
-    for i, phase in enumerate(phases):
-        stations_with_SNR = SNR_amplitude(stations, st, Dtmin_Pn, Dtmax_Pn, Dtmin_Sn, Dtmax_Sn, vLg_min, vLg_max, vPg_min, vPg_max,
-                                tmin_Coda, tmax_Coda, Dtmin_Noise, Dtmax_Noise,eq_start, method='time_amplitude', signal_window=phase, plot_map=False, dB=dB)
-        SNR_vals = stations_with_SNR[:, -1].astype(float)
-        dist_vals = stations_with_SNR[:, 5].astype(float) / 1000. 
-        #SNR_vals = SNR_vals[np.isfinite(SNR_vals)]
-        #dist_vals = dist_vals[np.isfinite(SNR_vals)]
-        
-        threshold = 2
-        snr_threshold = 0.9
-
-
-        filtered_distances = dist_vals[SNR_vals > snr_threshold]
-
-        if len(filtered_distances) > 0:
-            percentile_distance = np.percentile(filtered_distances, 90)
-            phase_distance[phase] = percentile_distance
-            print(f"Distance where 90% of SNR values are above 2: {percentile_distance}")
-        else:
-            print("No valid SNR values above 1.5.")
-            percentile_distance = None
-
-        if percentile_distance is not None:
-            #calculate the slope for for the regression snr = a*dist + b, when dist < percentile_distance, so sufficient SNR
-            coef = np.polyfit(dist_vals[dist_vals < percentile_distance],np.nan_to_num(SNR_vals[dist_vals < percentile_distance], nan=0.0, posinf=0.0, neginf=0.0),1)
-            coef_quad = np.polyfit(dist_vals[dist_vals < percentile_distance],np.nan_to_num(SNR_vals[dist_vals < percentile_distance], nan=0.0, posinf=0.0, neginf=0.0),2)
-            poly1d_fn_quad = np.poly1d(coef_quad)
-            poly1d_fn = np.poly1d(coef)
-            
-            #calculate the slope for the regression snr = a*dist + b, when dist > percentile_distance, so insufficient SNR
-            coef1 = np.polyfit(dist_vals[dist_vals > percentile_distance],np.nan_to_num(SNR_vals[dist_vals > percentile_distance], nan=0.0, posinf=0.0, neginf=0.0),1)
-            poly1d_fn1 = np.poly1d(coef1)
-            phase_distance[phase] = {
-                'percentile_distance': percentile_distance,
-                'coef_quad': coef[0],
-                'coef1': coef1[0]
-            }
-            ax = axs[i//2, i%2]
-            ax.plot(dist_vals, SNR_vals, 'o')
-            ax.plot(dist_vals[dist_vals > percentile_distance], poly1d_fn1(dist_vals[dist_vals > percentile_distance]), 'r', color='r', label='insufficient SNR')
-            ax.plot(dist_vals[dist_vals < percentile_distance], poly1d_fn(dist_vals[dist_vals < percentile_distance]), 'r', color='g',label='sufficient SNR')
-            #ax.plot(dist_vals[dist_vals < percentile_distance], poly1d_fn_quad(dist_vals[dist_vals < percentile_distance]), 'r', color='r', label='sufficient SNR')
-            ax.vlines(percentile_distance, ymin=-10, ymax=50, color='r', linestyle='dashed', label=f'90th percentile at {percentile_distance}')
-        else:
-            ax = axs[i//2, i%2]
-            ax.plot(dist_vals, SNR_vals, 'o')
-        
-        ax.set_xlabel('Distance (km)')
-        ax.legend(loc='upper right')
-        ax.set_ylim(-20, 70)
-        ax.set_ylabel('SNR (dB)')
-        ax.set_title(f'{event_name} SNR with {phase} phase')
-    plt.tight_layout()
-    plt.show()
-    return phase_distance 
-
-
 import folium
 def plot_stations_amps(stations_amps, amin, amax, Amp_Draw, origin=[0, 0], zoom=4, color="red", geom=False, 
                        geompower=0.5, normQ=False, Q=1000, f0=1, v=3.4, forcescale=False, outfile=None,amplitudes_or_snr="amplitudes"):
@@ -242,7 +183,75 @@ def plot_stations_amps(stations_amps, amin, amax, Amp_Draw, origin=[0, 0], zoom=
 
 
 
+###########################
+#Section 2.)
+#Plotting of SNR
 
+
+
+from scipy import stats
+def SNR_distance(stations, st, Dtmin_Pn, Dtmax_Pn, Dtmin_Sn, Dtmax_Sn, vLg_min, vLg_max, vPg_min, vPg_max, tmin_Coda, tmax_Coda,
+                 Dtmin_Noise, Dtmax_Noise,eq_start, dB= True):
+    phases = ['Lg', 'Pn', 'Sn', 'Pg']
+    phase_distance = {}
+    
+    fig, axs = plt.subplots(2, 2, figsize=(15, 15))
+    plt.style.use('seaborn-v0_8')
+    for i, phase in enumerate(phases):
+        stations_with_SNR = SNR_amplitude(stations, st, Dtmin_Pn, Dtmax_Pn, Dtmin_Sn, Dtmax_Sn, vLg_min, vLg_max, vPg_min, vPg_max,
+                                tmin_Coda, tmax_Coda, Dtmin_Noise, Dtmax_Noise,eq_start, method='time_amplitude', signal_window=phase, plot_map=False, dB=dB)
+        SNR_vals = stations_with_SNR[:, -1].astype(float)
+        dist_vals = stations_with_SNR[:, 5].astype(float) / 1000. 
+        #SNR_vals = SNR_vals[np.isfinite(SNR_vals)]
+        #dist_vals = dist_vals[np.isfinite(SNR_vals)]
+        
+        threshold = 2
+        snr_threshold = 0.9
+
+
+        filtered_distances = dist_vals[SNR_vals > snr_threshold]
+
+        if len(filtered_distances) > 0:
+            percentile_distance = np.percentile(filtered_distances, 90)
+            phase_distance[phase] = percentile_distance
+            print(f"Distance where 90% of SNR values are above 2: {percentile_distance}")
+        else:
+            print("No valid SNR values above 1.5.")
+            percentile_distance = None
+
+        if percentile_distance is not None:
+            #calculate the slope for for the regression snr = a*dist + b, when dist < percentile_distance, so sufficient SNR
+            coef = np.polyfit(dist_vals[dist_vals < percentile_distance],np.nan_to_num(SNR_vals[dist_vals < percentile_distance], nan=0.0, posinf=0.0, neginf=0.0),1)
+            coef_quad = np.polyfit(dist_vals[dist_vals < percentile_distance],np.nan_to_num(SNR_vals[dist_vals < percentile_distance], nan=0.0, posinf=0.0, neginf=0.0),2)
+            poly1d_fn_quad = np.poly1d(coef_quad)
+            poly1d_fn = np.poly1d(coef)
+            
+            #calculate the slope for the regression snr = a*dist + b, when dist > percentile_distance, so insufficient SNR
+            coef1 = np.polyfit(dist_vals[dist_vals > percentile_distance],np.nan_to_num(SNR_vals[dist_vals > percentile_distance], nan=0.0, posinf=0.0, neginf=0.0),1)
+            poly1d_fn1 = np.poly1d(coef1)
+            phase_distance[phase] = {
+                'percentile_distance': percentile_distance,
+                'coef_quad': coef[0],
+                'coef1': coef1[0]
+            }
+            ax = axs[i//2, i%2]
+            ax.plot(dist_vals, SNR_vals, 'o')
+            ax.plot(dist_vals[dist_vals > percentile_distance], poly1d_fn1(dist_vals[dist_vals > percentile_distance]), 'r', color='r', label='insufficient SNR')
+            ax.plot(dist_vals[dist_vals < percentile_distance], poly1d_fn(dist_vals[dist_vals < percentile_distance]), 'r', color='g',label='sufficient SNR')
+            #ax.plot(dist_vals[dist_vals < percentile_distance], poly1d_fn_quad(dist_vals[dist_vals < percentile_distance]), 'r', color='r', label='sufficient SNR')
+            ax.vlines(percentile_distance, ymin=-10, ymax=50, color='r', linestyle='dashed', label=f'90th percentile at {percentile_distance}')
+        else:
+            ax = axs[i//2, i%2]
+            ax.plot(dist_vals, SNR_vals, 'o')
+        
+        ax.set_xlabel('Distance (km)')
+        ax.legend(loc='upper right')
+        ax.set_ylim(-20, 70)
+        ax.set_ylabel('SNR (dB)')
+        ax.set_title(f'{event_name} SNR with {phase} phase')
+    plt.tight_layout()
+    plt.show()
+    return phase_distance 
 
 from matplotlib.colors import LogNorm
 
@@ -301,6 +310,7 @@ def snr_azimuth(stations_with_snr, column=10, barlabel="SNR", xlabel="Azimuth (Â
 
 
 
+import json
 
 def magnitude_cutoff(eq_list, plottype='single', event_name='Earthquake', savefig=False, show=True):
     """
@@ -535,7 +545,9 @@ def magnitude_cutoff(eq_list, plottype='single', event_name='Earthquake', savefi
 
 
     
-
+#############################
+#Section 3.)
+#Plotting of various things and envelopes
 
 
 def plot_record_section_with_energy(
@@ -604,6 +616,64 @@ def plot_record_section_with_energy(
         plt.show()
     
     return figure
+
+
+
+
+
+
+
+
+from scipy.signal import savgol_filter
+from random import randint
+def smooth_plot_envelope(time_string, n_traces,st_envelope, method='Cutoff distance',tmincoda_dist=442, tmaxcoda_dist=462,tmincoda_S = None, tmaxcoda_S= None,plotshow=False, savefig=True):
+    testing = [(randint(1, len(st_envelope))) for i in range(n_traces)]
+
+    plt.figure(figsize=(10,10))
+    for i in testing:
+        if i < len(st_envelope):
+            npts = len(st_envelope[i].data)
+            samprate = st_envelope[i].stats.sampling_rate #10000/700 
+            t = np.arange(0, npts / samprate, 1 / samprate)
+
+            #use a stable window length in s, while the window lenght in samples is dependant on the sample rate
+            
+            window_length = min(50*samprate, npts) # Ensure window_length is not greater than npts
+            if window_length % 2 == 0:
+                window_length -= 1
+            yhat = savgol_filter(st_envelope[i].data, int(window_length), 3) 
+            t = t[:len(yhat)]
+
+            #plt.semilogy(t,st_envelope[i])
+            plt.semilogy(t,yhat, color='red')
+            plt.ylim([1e-9,1e-4])
+            plt.title(f"Vertical component envelope {time_string}")
+            plt.ylabel("Energy")
+            plt.xlabel("Time (s)")
+            #plt.xlim([100,350])
+    plt.vlines(tmaxcoda_dist,ymax=1e-4,ymin=1e-9, label=f'coda window calculated with {method}',colors='g',linestyles='--')
+    plt.vlines(tmincoda_dist,ymax=1e-4,ymin=1e-9,colors='g',linestyles='--')
+    if tmincoda_S is not None and tmaxcoda_S is not None:
+        plt.vlines(tmaxcoda_S,ymax=1e-4,ymin=1e-9, label='coda window calculated with S-wave',colors='b',linestyles='--')
+        plt.vlines(tmincoda_S,ymax=1e-4,ymin=1e-9,colors='b',linestyles='--')
+    #plt.vlines(350,ymax=1e-4,ymin=1e-9, label='coda window similar to Galina&Shapiro 2024',colors='b',linestyles='--')
+    #plt.vlines(470,ymax=1e-4,ymin=1e-9,colors='b',linestyles='--')
+    plt.legend()
+    if savefig:
+        mag_dir = '/home/schreinl/Stage/Data/Metadata/'
+        with open(f"{mag_dir}{time_string}.txt", "r") as meta:
+            for line in meta:
+                if line.startswith("Magnitude:"):
+                    magnitude = float(line.split(":")[1].strip())
+        plt.savefig(f'/home/schreinl/Stage/Figures/SiteEffect/multiple_envelopes_{time_string}_{magnitude}_{method}_filtered.png', format='png')
+    if plotshow:
+        plt.show()
+    
+    return
+
+
+
+
 
 
 
@@ -741,6 +811,10 @@ def color_scale(min_value, max_value, num_steps=100):
     return [get_color_logstep(value) for value in np.logspace(np.log10(min_value), np.log10(max_value), num_steps)]
 
 
+
+#############################
+#Section 4.)
+#Plotting of site effects
 
 
 
