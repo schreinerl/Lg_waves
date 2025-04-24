@@ -5,12 +5,15 @@ from obspy.geodetics import gps2dist_azimuth
 from obspy.core import Stream
 import os
 from tqdm import tqdm
+import obspy
 import folium
 from obspy.clients.fdsn import Client
 from obspy import read_events
 import numpy as np
 import pandas as pd
+from scipy.signal import savgol_filter
 import json
+from processing_routines import *
 
 def get_data2(client, inventory, start, end, eq_lon, eq_lat, distmin, distmax, directory='/home/schreinl/Stage/Data/',datacenter='datacenter'):
     """
@@ -646,12 +649,13 @@ other variables are float
         Amp_Draw = select_ratio(wavecode, stations_with_amps)
         print(f"plotting {wavecode} amplitudes")
         amp_plot = plot_stations_amps(stations_with_amps, 1, 0.7, Amp_Draw, origin=[eq_lat, eq_lon], zoom=5, forcescale=False)
-    amp_plot   
+        amp_plot   
+        return filtered_arr,stations_with_SNR, phase_distance, tmin_Coda, st, stations_with_amps,  amp_plot
 
 
 
 
-    return filtered_arr,stations_with_SNR, phase_distance, tmin_Coda, st, stations_with_amps,  amp_plot
+    return filtered_arr,stations_with_SNR, phase_distance, tmin_Coda, st, stations_with_amps, None
     
 
 
@@ -745,9 +749,14 @@ def calc_amps(stations, st, Dtmin_Pn, Dtmax_Pn, Dtmin_Sn, Dtmax_Sn, vLg_min,vLg_
     return stations_with_amps
 
 
+from scipy.fftpack import hilbert
+#from obspy.signal.filter import envelope
+from scipy.signal import resample
 
-
-
+def envelope_calculator(data):
+    hilb = hilbert(data)
+    data = (data ** 2 + hilb ** 2) ** 0.5
+    return data
 
 
 def envelopes_routine1(event, st_envelope, codastart=350, codaend=470, method='cutoff',  coda_dist_start=300, coda_dist_end=350, plotting=False, n_traces=50, snr=None, snr_window=None):
