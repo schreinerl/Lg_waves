@@ -64,7 +64,7 @@ warnings.filterwarnings("ignore")
 
 
 def processing_data_routine(datacenters=['RESIF', 'ODC', 'ETH', 'INGV', 'GEOFON', 'IRIS', 'ICGC','LMU','BGR',"http://fdsnws.sismologia.ign.es"],
-                            directory='/home/schreinl/Stage/Data1/',distmin=0.5,distmax=10.0,catalogue='/home/schreinl/Stage/Data/big_box_4.5.csv',
+                            directory='/bettik/PROJECTS/pr-terracorr/schreinl/Data/',distmin=0.5,distmax=10.0,catalogue='/bettik/PROJECTS/pr-terracorr/schreinl/Data/trial.csv',
                             factor=1.1,fmin=[0.5,2,4,6],fmax=[1.5,3,6,8],codawindow='cutoff',snr_threshold=5):
     '''
     this function does all the heavy processing steps. It downloads first the data (all of it when the checking rhythm is not active),
@@ -90,7 +90,7 @@ def processing_data_routine(datacenters=['RESIF', 'ODC', 'ETH', 'INGV', 'GEOFON'
         for i in range(len(fmin)):
             print(i)
             print(fmin[i])
-            amplitude_test = f"/home/schreinl/Stage/Data1/{time_string}/{time_string}_new_{codawindow}_fac_{factor}_{fmin[i]}_{fmax[i]}Hz_dict.txt"
+            amplitude_test = f"/bettik/PROJECTS/pr-terracorr/schreinl/Data/{time_string}/{time_string}_new_{codawindow}_fac_{factor}_{fmin[i]}_{fmax[i]}Hz_dict.txt"
             #if os.path.exists(amplitude_test):
             #    continue
             #else:
@@ -118,8 +118,8 @@ def processing_data_routine(datacenters=['RESIF', 'ODC', 'ETH', 'INGV', 'GEOFON'
 
         for i in range(len(fmin)):
             print(f'Frequency range {fmin[i]}-{fmax[i]}')
-            envelope_file = f"/home/schreinl/Stage/Data1/{time_string}/{time_string}_new_{codawindow}_fac_{factor}_{fmin[i]}_{fmax[i]}Hz_stream1.mseed"
-            amplitude_file = f"/home/schreinl/Stage/Data1/{time_string}/{time_string}_new_{codawindow}_fac_{factor}_{fmin[i]}_{fmax[i]}Hz_dict1.txt"
+            envelope_file = f"/bettik/PROJECTS/pr-terracorr/schreinl/Data/{time_string}/{time_string}_new_{codawindow}_fac_{factor}_{fmin[i]}_{fmax[i]}Hz_stream1.mseed"
+            amplitude_file = f"/bettik/PROJECTS/pr-terracorr/schreinl/Data/{time_string}/{time_string}_new_{codawindow}_fac_{factor}_{fmin[i]}_{fmax[i]}Hz_dict1.txt"
             
             if os.path.exists(envelope_file) and os.path.exists(amplitude_file):
                 print(f"Files for event {event} already exist. Skipping...")
@@ -154,19 +154,19 @@ def processing_data_routine(datacenters=['RESIF', 'ODC', 'ETH', 'INGV', 'GEOFON'
             if filtered_stations_with_SNR is None or len(filtered_stations_with_SNR) == 0:
                 continue
 
-            with open(f"/home/schreinl/Stage/Data1/Dicts/{time_string}_{snr_threshold}_thresh_dict.txt", "w") as file:
+            with open(f"/bettik/PROJECTS/pr-terracorr/schreinl/Data/{time_string}_{snr_threshold}_thresh_dict.txt", "w") as file:
                 json.dump(distance_dict, file, indent=4)
             
             # Save stations_with_amps to a file
-            with open(f"/home/schreinl/Stage/Data1/{time_string}/{time_string}_{fmin[i]}_{fmax[i]}Hz_{snr_threshold}_thresh_stations_with_amps1.txt", "w") as ampls:
+            with open(f"/bettik/PROJECTS/pr-terracorr/schreinl/Data/{time_string}/{time_string}_{fmin[i]}_{fmax[i]}Hz_{snr_threshold}_thresh_stations_with_amps1.txt", "w") as ampls:
                 json.dump(stations_with_amps.tolist(), ampls, indent=4)
 
                 # Save filtered stations with their corresponding SNR
-            with open(f"/home/schreinl/Stage/Data1/{time_string}/{time_string}_{snr_threshold}_thresh_filtered_stations_SNR.txt", "w") as snrfile:
+            with open(f"/bettik/PROJECTS/pr-terracorr/schreinl/Data/{time_string}/{time_string}_{snr_threshold}_thresh_filtered_stations_SNR.txt", "w") as snrfile:
                 json.dump(filtered_stations_with_SNR.tolist(), snrfile, indent=4)
 
                 # Save the stations with SNR, unfiltered
-            with open(f"/home/schreinl/Stage/Data1/{time_string}/{time_string}_unfiltered_stations_SNR.txt", "w") as unsnrfile:
+            with open(f"/bettik/PROJECTS/pr-terracorr/schreinl/Data/{time_string}/{time_string}_unfiltered_stations_SNR.txt", "w") as unsnrfile:
                 json.dump(stations_with_SNR.tolist(), unsnrfile, indent=4)
             amplitudes_full = calc_amps(stations_all, st_plot_filt_all, Dtmin_Pn, Dtmax_Pn, Dtmin_Sn, Dtmax_Sn, vLg_min,vLg_max,vPg_min,vPg_max, tcoda_test, tcoda_test+100, Dtmin_Noise, Dtmax_Noise, eq_start)
             amplitudes_small = calc_amps(stations_all, st_plot_filt_all, Dtmin_Pn, Dtmax_Pn, Dtmin_Sn, Dtmax_Sn, vLg_min,vLg_max,vPg_min,vPg_max, tcoda_test+80, tcoda_test+100, Dtmin_Noise, Dtmax_Noise, eq_start)
@@ -187,4 +187,4 @@ def processing_data_routine(datacenters=['RESIF', 'ODC', 'ETH', 'INGV', 'GEOFON'
             for trace in st_envelope:
                 if trace.stats.station in filtered_station_names:
                     filtered_stream.append(trace)
-test = processing_data_routine(catalogue='/home/schreinl/Stage/Data/trial.csv')
+test = processing_data_routine(directory='/bettik/PROJECTS/pr-terracorr/schreinl/Data/',catalogue='/bettik/PROJECTS/pr-terracorr/schreinl/Data/trial.csv')
