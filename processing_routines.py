@@ -192,7 +192,7 @@ def big_downloader2(datacenters, start, end, eq_lon, eq_lat, distmin, distmax, d
     # Define output file
     time_string = UTCDateTime.strftime(start, format="%Y_%m_%dT%H_%M_%S")
     output_file = f"/home/schreinl/Stage/Data/Metadata/{time_string}.txt"
-
+    # if ran on the cluster this has to be changed to /bettik/PROJECTS/pr-terracorr/schreinl/Data
     with open(output_file, "w") as f:
         f.write(f"Start Time: {eq_start}\n")
         f.write(f"End Time: {eq_end}\n")
