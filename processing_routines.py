@@ -171,7 +171,7 @@ def big_downloader2(datacenters, start, end, eq_lon, eq_lat, distmin, distmax, d
     maxlon_st = 16
 
     # Write the earthquake info in a file
-    events_list = Client("USGS").get_events(
+    events_list = Client("EMSC").get_events(
         minlatitude=37,
         maxlatitude=50,
         minlongitude=-5,

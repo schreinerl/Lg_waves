@@ -1014,7 +1014,7 @@ def SNR_amplitude(stations, st, Dtmin_Pn, Dtmax_Pn, Dtmin_Sn, Dtmax_Sn, vLg_min,
 
 from scipy import stats
 def SNR_distance(stations, st, Dtmin_Pn, Dtmax_Pn, Dtmin_Sn, Dtmax_Sn, vLg_min, vLg_max, vPg_min, vPg_max, tmin_Coda, tmax_Coda,
-                 Dtmin_Noise, Dtmax_Noise,eq_start, dB= True):
+                 Dtmin_Noise, Dtmax_Noise,eq_start, dB= True,event_name='event', plot_map=False):
     phases = ['Lg', 'Pn', 'Sn', 'Pg']
     phase_distance = {}
     
