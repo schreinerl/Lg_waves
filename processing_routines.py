@@ -14,6 +14,7 @@ import pandas as pd
 from scipy.signal import savgol_filter
 import json
 from processing_routines import *
+import matplotlib.pyplot as plt
 
 def get_data2(client, inventory, start, end, eq_lon, eq_lat, distmin, distmax, directory='/home/schreinl/Stage/Data/',datacenter='datacenter'):
     """
@@ -166,15 +167,15 @@ def big_downloader2(datacenters, start, end, eq_lon, eq_lat, distmin, distmax, d
     """
     
 
-    minlat_st = 40.
+    minlat_st = 37.
     maxlat_st = 52
     minlon_st = -5            
-    maxlon_st = 16
+    maxlon_st = 20
 
     # Write the earthquake info in a file
     events_list = Client("EMSC").get_events(
         minlatitude=37,
-        maxlatitude=50,
+        maxlatitude=52,
         minlongitude=-5,
         maxlongitude=20,
         minmagnitude=3,
@@ -448,7 +449,7 @@ other variables are float
         print(f'calculating SNR for {window}  phase')
         
     #calculating the SNR for a specific phase
-        tsmax = 0
+        tsmax = 0  
         distmax = 0
             
         for k, station in enumerate(stations):
